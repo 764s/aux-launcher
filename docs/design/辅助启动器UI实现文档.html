@@ -1,0 +1,2685 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>代理启动器（非 TUN）· UI 实现文档</title>
+  <style>
+    :root {
+      /* =========================================================
+         产品 UI Design Tokens（开发实现可直接复用）
+         ========================================================= */
+      --win-width: 388px;
+      --win-radius: 12px;
+      --titlebar-height: 38px;
+      --body-pad-top: 18px;
+      --body-pad-x: 20px;
+      --body-pad-bottom: 20px;
+      --body-gap: 14px;
+      --slot-min-height: 68px;
+      --slot-radius: 10px;
+      --cta-height: 44px;
+      --cta-radius: 9px;
+
+      --ui-bg: #ffffff;
+      --ui-surface-subtle: #f8fafc;
+      --ui-surface-hover: #f1f5f9;
+      --ui-border: #e2e8f0;
+      --ui-border-strong: #cbd5e1;
+      --ui-ink: #0f172a;
+      --ui-ink-2: #64748b;
+      --ui-ink-3: #94a3b8;
+
+      --ui-primary: #2563eb;
+      --ui-primary-hover: #1d4ed8;
+      --ui-primary-active: #1e40af;
+      --ui-primary-soft: #eff6ff;
+      --ui-primary-border: #bfdbfe;
+
+      --ui-success: #047857;
+      --ui-success-bg: #ecfdf5;
+      --ui-success-border: #a7f3d0;
+      --ui-success-dot: #10b981;
+
+      --ui-warn: #b45309;
+      --ui-warn-bg: #fffbeb;
+      --ui-warn-border: #fde68a;
+      --ui-warn-dot: #f59e0b;
+
+      --ui-error: #be123c;
+      --ui-error-bg: #fff1f2;
+      --ui-error-border: #fecdd3;
+      --ui-error-dot: #e11d48;
+
+      --ui-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+      --ui-dur-fast: 140ms;
+      --ui-dur-base: 220ms;
+
+      --font-sans: "Segoe UI Variable Text", "Segoe UI", "PingFang SC", "Microsoft YaHei UI", -apple-system, sans-serif;
+      --font-mono: "Cascadia Mono", "Consolas", "SFMono-Regular", ui-monospace, monospace;
+
+      /* 文档环境色（非产品 UI） */
+      --doc-canvas: #e9ecf2;
+      --doc-dot: rgba(15, 23, 42, 0.08);
+      --doc-panel: #111827;
+      --doc-panel-2: #1f2937;
+      --doc-panel-border: rgba(255, 255, 255, 0.12);
+      --doc-text: #f3f4f6;
+      --doc-text-dim: #9ca3af;
+      --redline: #e11d48;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      color: var(--ui-ink);
+      background-color: var(--doc-canvas);
+      background-image: radial-gradient(var(--doc-dot) 1px, transparent 1px);
+      background-size: 20px 20px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* =====================================================================
+       上方主区域：纯净画布，仅呈现 1 个真实可操作的面向用户窗体
+       ===================================================================== */
+    .stage {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 56px 24px 44px;
+      position: relative;
+    }
+
+    .app-frame-wrap {
+      position: relative;
+      width: min(var(--win-width), 100%);
+    }
+
+    /* =====================================================================
+       面向用户的真实软件窗体（100% 仅用户界面，零文档元素）
+       ===================================================================== */
+    .win-app {
+      width: 100%;
+      background: var(--ui-bg);
+      border-radius: var(--win-radius);
+      border: 1px solid rgba(15, 23, 42, 0.11);
+      box-shadow:
+        0 1px 2px rgba(15, 23, 42, 0.05),
+        0 12px 28px rgba(15, 23, 42, 0.09),
+        0 28px 56px -14px rgba(15, 23, 42, 0.16);
+      overflow: hidden;
+      transition: box-shadow var(--ui-dur-base) var(--ui-ease), border-color var(--ui-dur-base) var(--ui-ease);
+    }
+
+    .win-app.drag-active {
+      border-color: var(--ui-primary);
+      box-shadow:
+        0 0 0 3px rgba(37, 99, 235, 0.18),
+        0 16px 36px rgba(37, 99, 235, 0.14);
+    }
+
+    /* 标题栏 */
+    .win-titlebar {
+      height: var(--titlebar-height);
+      padding: 0 6px 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid #f1f5f9;
+      background: #ffffff;
+      user-select: none;
+    }
+
+    .win-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .win-logo {
+      width: 18px;
+      height: 18px;
+      border-radius: 5px;
+      background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+      display: grid;
+      place-items: center;
+      color: #ffffff;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(37, 99, 235, 0.35);
+    }
+
+    .win-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ui-ink);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    .win-mode-tag {
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: #475569;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      padding: 1.5px 6px;
+      border-radius: 5px;
+      line-height: 1.35;
+      white-space: nowrap;
+    }
+
+    .win-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    /* 标题栏极轻量化本地代理入口触发器（不增窗体高度，仅空闲态可点修改） */
+    .proxy-trigger {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 22px;
+      padding: 0 7px;
+      border-radius: 5px;
+      border: 1px solid transparent;
+      background: transparent;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: background var(--ui-dur-fast) var(--ui-ease), color var(--ui-dur-fast) var(--ui-ease), border-color var(--ui-dur-fast) var(--ui-ease);
+      white-space: nowrap;
+    }
+
+    .proxy-trigger:hover:not(:disabled),
+    .proxy-trigger.active {
+      background: #f1f5f9;
+      border-color: #e2e8f0;
+      color: #334155;
+    }
+
+    .proxy-trigger.unset {
+      color: #64748b;
+      background: #f8fafc;
+      border-color: #e2e8f0;
+    }
+
+    .proxy-trigger:disabled {
+      cursor: default;
+      opacity: 0.65;
+    }
+
+    .proxy-trigger:focus-visible {
+      outline: 2px solid var(--ui-primary);
+      outline-offset: -1px;
+    }
+
+    .win-controls {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .win-ctrl {
+      width: 30px;
+      height: 26px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      color: #64748b;
+      cursor: pointer;
+      transition: background var(--ui-dur-fast) var(--ui-ease), color var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .win-ctrl:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+
+    .win-ctrl.close:hover {
+      background: #e11d48;
+      color: #ffffff;
+    }
+
+    .win-ctrl:focus-visible {
+      outline: 2px solid var(--ui-primary);
+      outline-offset: -2px;
+    }
+
+    /* 主体区 */
+    .win-body {
+      padding: var(--body-pad-top) var(--body-pad-x) var(--body-pad-bottom);
+      display: flex;
+      flex-direction: column;
+      gap: var(--body-gap);
+    }
+
+    /* 目标程序区（主文件槽 + 按需出现的极简最近记录行） */
+    .target-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* 1. 目标 EXE 选择槽 */
+    .exe-slot {
+      min-height: var(--slot-min-height);
+      padding: 12px 14px;
+      border-radius: var(--slot-radius);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--ui-bg);
+      border: 1px solid var(--ui-border);
+      transition:
+        background var(--ui-dur-fast) var(--ui-ease),
+        border-color var(--ui-dur-fast) var(--ui-ease),
+        box-shadow var(--ui-dur-fast) var(--ui-ease);
+      position: relative;
+    }
+
+    .exe-slot.empty {
+      background: var(--ui-surface-subtle);
+      border: 1.5px dashed var(--ui-border-strong);
+      cursor: pointer;
+    }
+
+    .exe-slot.empty:hover,
+    .win-app.drag-active .exe-slot.empty,
+    .win-app.drag-active .exe-slot:not(.locked) {
+      background: #f5f9ff;
+      border-color: var(--ui-primary);
+    }
+
+    .exe-slot.locked {
+      background: var(--ui-surface-subtle);
+      border-color: #e6ebf2;
+    }
+
+    .exe-slot.missing {
+      background: #fffafa;
+      border-color: #fecdd3;
+    }
+
+    .exe-slot.danger {
+      background: #fffafa;
+      border-color: #fecdd3;
+    }
+
+    .exe-icon-box {
+      width: 38px;
+      height: 38px;
+      border-radius: 9px;
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      transition: background var(--ui-dur-base) var(--ui-ease), color var(--ui-dur-base) var(--ui-ease), border-color var(--ui-dur-base) var(--ui-ease);
+    }
+
+    .exe-icon-box.placeholder {
+      background: #eef2f7;
+      color: #64748b;
+    }
+
+    .exe-icon-box.selected {
+      background: linear-gradient(145deg, #eff6ff 0%, #dbeafe 100%);
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+    }
+
+    .exe-icon-box.running {
+      background: linear-gradient(145deg, #ecfdf5 0%, #d1fae5 100%);
+      border: 1px solid #a7f3d0;
+      color: #047857;
+    }
+
+    .exe-icon-box.warn {
+      background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%);
+      border: 1px solid #fde68a;
+      color: #b45309;
+    }
+
+    .exe-icon-box.missing,
+    .exe-icon-box.danger {
+      background: linear-gradient(145deg, #fff1f2 0%, #ffe4e6 100%);
+      border: 1px solid #fecdd3;
+      color: #be123c;
+    }
+
+    .exe-meta {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .exe-title-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .exe-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ui-ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.35;
+    }
+
+    .exe-slot.empty .exe-title {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #334155;
+    }
+
+    .exe-missing-badge {
+      flex-shrink: 0;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #be123c;
+      background: #ffe4e6;
+      padding: 1px 6px;
+      border-radius: 4px;
+      line-height: 1.35;
+    }
+
+    .exe-sub {
+      margin: 2px 0 0;
+      font-size: 11.5px;
+      color: var(--ui-ink-3);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 1.4;
+    }
+
+    .exe-sub.is-path {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ui-ink-2);
+    }
+
+    .exe-slot.missing .exe-sub.is-path {
+      color: #be123c;
+      opacity: 0.85;
+    }
+
+    .exe-btn {
+      flex-shrink: 0;
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 7px;
+      line-height: 1.2;
+      cursor: pointer;
+      transition: background var(--ui-dur-fast) var(--ui-ease), color var(--ui-dur-fast) var(--ui-ease), border-color var(--ui-dur-fast) var(--ui-ease), transform var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .exe-btn.pick {
+      color: var(--ui-primary);
+      background: var(--ui-primary-soft);
+      border: 1px solid rgba(37, 99, 235, 0.16);
+    }
+
+    .exe-btn.pick:hover {
+      background: #dbeafe;
+      border-color: #93c5fd;
+    }
+
+    .exe-btn.change {
+      color: #334155;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+    }
+
+    .exe-btn.change:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .exe-btn:active {
+      transform: scale(0.97);
+    }
+
+    .exe-btn:focus-visible {
+      outline: 2px solid var(--ui-primary);
+      outline-offset: 2px;
+    }
+
+    /* 1b. 极简最近记录芯片行（按需出现） */
+    .recent-wrap {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      margin-top: -8px;
+      transition:
+        grid-template-rows var(--ui-dur-base) var(--ui-ease),
+        opacity var(--ui-dur-base) var(--ui-ease),
+        margin-top var(--ui-dur-base) var(--ui-ease);
+    }
+
+    .recent-wrap.visible {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      margin-top: 0;
+    }
+
+    .recent-inner {
+      overflow: hidden;
+    }
+
+    .recent-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 26px;
+      transition: opacity var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .recent-bar.locked {
+      opacity: 0.45;
+      pointer-events: none;
+    }
+
+    .recent-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ui-ink-3);
+      flex-shrink: 0;
+      user-select: none;
+      margin-right: 1px;
+    }
+
+    .recent-chips {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .recent-chip {
+      display: inline-flex;
+      align-items: center;
+      max-width: 152px;
+      height: 24px;
+      background: var(--ui-surface-subtle);
+      border: 1px solid var(--ui-border);
+      border-radius: 6px;
+      padding: 0 3px 0 8px;
+      gap: 2px;
+      transition: background var(--ui-dur-fast) var(--ui-ease), border-color var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .recent-chip:hover {
+      background: var(--ui-surface-hover);
+      border-color: var(--ui-border-strong);
+    }
+
+    .recent-chip-pick {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      margin: 0;
+      font-family: inherit;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #475569;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 22px;
+    }
+
+    .recent-chip:hover .recent-chip-pick {
+      color: var(--ui-ink);
+    }
+
+    .recent-chip-pick:focus-visible {
+      outline: 2px solid var(--ui-primary);
+      outline-offset: 1px;
+      border-radius: 4px;
+    }
+
+    .recent-chip-del {
+      width: 17px;
+      height: 17px;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      border-radius: 4px;
+      display: grid;
+      place-items: center;
+      color: #94a3b8;
+      cursor: pointer;
+      flex-shrink: 0;
+      opacity: 0.55;
+      transition: background var(--ui-dur-fast) var(--ui-ease), color var(--ui-dur-fast) var(--ui-ease), opacity var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .recent-chip:hover .recent-chip-del,
+    .recent-chip-del:focus-visible {
+      opacity: 1;
+    }
+
+    .recent-chip-del:hover {
+      background: #e2e8f0;
+      color: #334155;
+    }
+
+    .recent-chip-del:focus-visible {
+      outline: 2px solid var(--ui-primary);
+      outline-offset: -1px;
+    }
+
+    /* 1c. 按需展开的轻量本地 SOCKS5 入口确认卡片（平时完全收起，零常驻负担） */
+    .proxy-panel-wrap {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      margin-top: calc(var(--body-gap) * -1);
+      transition:
+        grid-template-rows var(--ui-dur-base) var(--ui-ease),
+        opacity var(--ui-dur-base) var(--ui-ease),
+        margin-top var(--ui-dur-base) var(--ui-ease);
+    }
+
+    .proxy-panel-wrap.visible {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      margin-top: 0;
+    }
+
+    .proxy-panel-inner {
+      overflow: hidden;
+    }
+
+    .proxy-card {
+      background: #f8fafc;
+      border: 1px solid #dbe4f0;
+      border-radius: 10px;
+      padding: 12px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .proxy-card-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .proxy-card-title {
+      margin: 0;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--ui-ink);
+    }
+
+    .proxy-card-hint {
+      margin: 2px 0 0;
+      font-size: 11.5px;
+      color: var(--ui-ink-2);
+    }
+
+    .candidate-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .candidate-chip {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #334155;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 4px 9px;
+      cursor: pointer;
+      transition: border-color var(--ui-dur-fast) var(--ui-ease), background var(--ui-dur-fast) var(--ui-ease), color var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .candidate-chip:hover {
+      border-color: var(--ui-primary);
+      color: var(--ui-primary);
+    }
+
+    .candidate-chip.selected {
+      background: var(--ui-primary-soft);
+      border-color: var(--ui-primary);
+      color: var(--ui-primary-hover);
+      font-weight: 600;
+    }
+
+    .proxy-fields {
+      display: grid;
+      grid-template-columns: 1fr 96px;
+      gap: 8px;
+    }
+
+    .proxy-auth-fields {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .proxy-field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .proxy-field label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--ui-ink-2);
+    }
+
+    .proxy-input {
+      width: 100%;
+      height: 32px;
+      padding: 0 9px;
+      border-radius: 7px;
+      border: 1px solid #cbd5e1;
+      background: #ffffff;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--ui-ink);
+      transition: border-color var(--ui-dur-fast) var(--ui-ease), box-shadow var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .proxy-input:focus {
+      outline: none;
+      border-color: var(--ui-primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+    }
+
+    .proxy-card-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .proxy-auth-toggle {
+      border: 0;
+      padding: 0;
+      background: transparent;
+      font-family: inherit;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #64748b;
+      cursor: pointer;
+    }
+
+    .proxy-auth-toggle:hover {
+      color: var(--ui-primary);
+    }
+
+    .proxy-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .mini-btn {
+      height: 30px;
+      padding: 0 11px;
+      border-radius: 7px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background var(--ui-dur-fast) var(--ui-ease), border-color var(--ui-dur-fast) var(--ui-ease), color var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .mini-btn.ghost {
+      background: #ffffff;
+      border-color: #cbd5e1;
+      color: #475569;
+    }
+
+    .mini-btn.ghost:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+
+    .mini-btn.confirm {
+      background: var(--ui-primary);
+      border-color: var(--ui-primary-hover);
+      color: #ffffff;
+    }
+
+    .mini-btn.confirm:hover {
+      background: var(--ui-primary-hover);
+    }
+
+    .live-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-right: 4px;
+    }
+
+    .live-dot.blue {
+      background: #2563eb;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    .live-dot.green {
+      background: var(--ui-success-dot);
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+      animation: pulse 2.2s ease-in-out infinite;
+    }
+
+    .live-dot.amber {
+      background: var(--ui-warn-dot);
+      box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.22);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+
+    .live-dot.red {
+      background: var(--ui-error-dot);
+      box-shadow: 0 0 0 4px rgba(225, 29, 72, 0.2);
+      animation: pulse 1.15s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(0.86); opacity: 0.72; }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spin {
+      animation: spin 0.85s linear infinite;
+    }
+
+    /* 2. 主操作按钮 */
+    .cta-btn {
+      width: 100%;
+      height: var(--cta-height);
+      border-radius: var(--cta-radius);
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid transparent;
+      transition:
+        background var(--ui-dur-fast) var(--ui-ease),
+        border-color var(--ui-dur-fast) var(--ui-ease),
+        color var(--ui-dur-fast) var(--ui-ease),
+        box-shadow var(--ui-dur-fast) var(--ui-ease),
+        transform var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .cta-btn.primary {
+      background: linear-gradient(180deg, #2b6ef5 0%, #1d4ed8 100%);
+      color: #ffffff;
+      border-color: #1e40af;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.22),
+        0 4px 12px rgba(29, 78, 216, 0.26);
+      cursor: pointer;
+    }
+
+    .cta-btn.primary:hover {
+      background: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.25),
+        0 6px 16px rgba(29, 78, 216, 0.34);
+      transform: translateY(-0.5px);
+    }
+
+    .cta-btn.primary:active {
+      transform: translateY(0.5px) scale(0.992);
+      box-shadow: 0 2px 6px rgba(29, 78, 216, 0.26);
+    }
+
+    .cta-btn.primary:focus-visible {
+      outline: 2px solid var(--ui-primary);
+      outline-offset: 2px;
+    }
+
+    .cta-btn.disabled {
+      background: #f1f5f9;
+      color: #94a3b8;
+      border-color: #e2e8f0;
+      cursor: not-allowed;
+    }
+
+    .cta-btn.loading {
+      background: var(--ui-primary-soft);
+      color: #1d4ed8;
+      border-color: var(--ui-primary-border);
+      cursor: progress;
+    }
+
+    .cta-btn.running {
+      background: var(--ui-success-bg);
+      color: var(--ui-success);
+      border-color: var(--ui-success-border);
+      cursor: default;
+    }
+
+    .cta-btn.waiting {
+      background: #f8fafc;
+      color: #64748b;
+      border-color: #e2e8f0;
+      cursor: default;
+    }
+
+    .cta-btn.danger-status {
+      background: var(--ui-error-bg);
+      color: var(--ui-error);
+      border-color: var(--ui-error-border);
+      cursor: default;
+    }
+
+    /* 3. 按需出现的状态反馈条 */
+    .feedback-wrap {
+      display: grid;
+      grid-template-rows: 0fr;
+      opacity: 0;
+      margin-top: calc(var(--body-gap) * -1);
+      transition:
+        grid-template-rows var(--ui-dur-base) var(--ui-ease),
+        opacity var(--ui-dur-base) var(--ui-ease),
+        margin-top var(--ui-dur-base) var(--ui-ease);
+    }
+
+    .feedback-wrap.visible {
+      grid-template-rows: 1fr;
+      opacity: 1;
+      margin-top: 0;
+    }
+
+    .feedback-inner {
+      overflow: hidden;
+    }
+
+    .feedback-bar {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      padding: 10px 12px;
+      border-radius: 9px;
+      font-size: 12.5px;
+      line-height: 1.45;
+      border: 1px solid transparent;
+    }
+
+    .feedback-bar svg {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .feedback-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .feedback-bar.info {
+      background: #f8fafc;
+      border-color: #e2e8f0;
+      color: #475569;
+    }
+
+    .feedback-bar.success {
+      background: #f0fdf4;
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+
+    .feedback-bar.warn {
+      background: var(--ui-warn-bg);
+      border-color: var(--ui-warn-border);
+      color: #92400e;
+    }
+
+    .feedback-bar.error {
+      background: var(--ui-error-bg);
+      border-color: var(--ui-error-border);
+      color: #9f1239;
+    }
+
+    .feedback-title {
+      font-weight: 600;
+      display: block;
+    }
+
+    .feedback-desc {
+      display: block;
+      margin-top: 1px;
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .feedback-link {
+      flex-shrink: 0;
+      align-self: center;
+      border: 0;
+      background: rgba(190, 18, 60, 0.08);
+      color: #9f1239;
+      font-family: inherit;
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .feedback-link:hover {
+      background: rgba(190, 18, 60, 0.15);
+    }
+
+    /* =====================================================================
+       尺寸标注红线叠加层（仅在开启“尺寸标注”时显示，属于文档辅助）
+       ===================================================================== */
+    .redline-layer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity var(--ui-dur-fast) var(--ui-ease);
+    }
+
+    .app-frame-wrap.show-redlines .redline-layer {
+      opacity: 1;
+    }
+
+    .rl-width {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -26px;
+      height: 16px;
+      border-left: 1px solid var(--redline);
+      border-right: 1px solid var(--redline);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .rl-width::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: var(--redline);
+    }
+
+    .rl-tag {
+      position: relative;
+      z-index: 1;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: #ffffff;
+      background: var(--redline);
+      padding: 1px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      line-height: 1.4;
+    }
+
+    .rl-titlebar {
+      position: absolute;
+      top: 0;
+      right: -64px;
+      height: var(--titlebar-height);
+      width: 54px;
+      border-top: 1px solid var(--redline);
+      border-bottom: 1px solid var(--redline);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .rl-titlebar::before,
+    .rl-slot::before,
+    .rl-recent::before,
+    .rl-cta::before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--redline);
+    }
+
+    .rl-slot {
+      position: absolute;
+      top: calc(var(--titlebar-height) + var(--body-pad-top));
+      right: -76px;
+      height: var(--slot-min-height);
+      width: 66px;
+      border-top: 1px solid var(--redline);
+      border-bottom: 1px solid var(--redline);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .rl-recent {
+      position: absolute;
+      top: calc(var(--titlebar-height) + var(--body-pad-top) + var(--slot-min-height) + 8px);
+      right: -82px;
+      height: 26px;
+      width: 72px;
+      border-top: 1px solid var(--redline);
+      border-bottom: 1px solid var(--redline);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .rl-cta {
+      position: absolute;
+      bottom: var(--body-pad-bottom);
+      right: -64px;
+      height: var(--cta-height);
+      width: 54px;
+      border-top: 1px solid var(--redline);
+      border-bottom: 1px solid var(--redline);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .rl-pad-left {
+      position: absolute;
+      top: calc(var(--titlebar-height) + 1px);
+      bottom: 1px;
+      left: 1px;
+      width: var(--body-pad-x);
+      background: rgba(225, 29, 72, 0.1);
+      border-right: 1px dashed rgba(225, 29, 72, 0.55);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 6px;
+    }
+
+    .rl-pad-right {
+      position: absolute;
+      top: calc(var(--titlebar-height) + 1px);
+      bottom: 1px;
+      right: 1px;
+      width: var(--body-pad-x);
+      background: rgba(225, 29, 72, 0.1);
+      border-left: 1px dashed rgba(225, 29, 72, 0.55);
+    }
+
+    .rl-mini {
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--redline);
+      background: rgba(255, 255, 255, 0.9);
+      padding: 0 4px;
+      border-radius: 3px;
+      line-height: 1.3;
+    }
+
+    /* =====================================================================
+       下方显眼隔离区：实现文档控制与规格面板（深色工程风格，明确非产品 UI）
+       ===================================================================== */
+    .doc-dock {
+      background: var(--doc-panel);
+      color: var(--doc-text);
+      border-top: 3px solid #4f46e5;
+      box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.16);
+    }
+
+    .doc-dock-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 16px 24px 20px;
+    }
+
+    .doc-bar-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 14px;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.16);
+    }
+
+    .doc-identity {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .doc-pill {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #c7d2fe;
+      background: rgba(79, 70, 229, 0.28);
+      border: 1px solid rgba(129, 140, 248, 0.5);
+      padding: 3px 9px;
+      border-radius: 6px;
+    }
+
+    .doc-state-readout {
+      font-size: 12.5px;
+      color: var(--doc-text-dim);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .doc-state-readout strong {
+      font-family: var(--font-mono);
+      color: #ffffff;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 8px;
+      border-radius: 5px;
+    }
+
+    .doc-event-echo {
+      font-size: 12px;
+      color: #93c5fd;
+    }
+
+    .doc-toggles {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .doc-btn {
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      color: #e5e7eb;
+      background: var(--doc-panel-2);
+      border: 1px solid var(--doc-panel-border);
+      padding: 6px 11px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+      white-space: nowrap;
+    }
+
+    .doc-btn:hover:not(:disabled) {
+      background: #374151;
+      border-color: rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+    }
+
+    .doc-btn:disabled {
+      opacity: 0.36;
+      cursor: not-allowed;
+    }
+
+    .doc-btn.active {
+      background: #4f46e5;
+      border-color: #818cf8;
+      color: #ffffff;
+    }
+
+    .doc-btn.warn-action {
+      border-color: rgba(245, 158, 11, 0.45);
+      color: #fcd34d;
+    }
+
+    .doc-btn.err-action {
+      border-color: rgba(244, 63, 94, 0.45);
+      color: #fda4af;
+    }
+
+    .doc-btn.ok-action {
+      border-color: rgba(16, 185, 129, 0.45);
+      color: #6ee7b7;
+    }
+
+    .doc-controls-grid {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 20px;
+      padding-top: 14px;
+    }
+
+    .ctrl-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .ctrl-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--doc-text-dim);
+      white-space: nowrap;
+    }
+
+    .doc-select {
+      font-family: inherit;
+      font-size: 12px;
+      color: #f9fafb;
+      background: var(--doc-panel-2);
+      border: 1px solid var(--doc-panel-border);
+      border-radius: 7px;
+      padding: 5.5px 10px;
+      cursor: pointer;
+    }
+
+    .doc-select:focus-visible {
+      outline: 2px solid #818cf8;
+      outline-offset: 1px;
+    }
+
+    /* 可展开的精准实现规格抽屉 */
+    .spec-drawer {
+      display: none;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.16);
+    }
+
+    .spec-drawer.open {
+      display: block;
+    }
+
+    .spec-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .spec-tab {
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      color: #9ca3af;
+      background: transparent;
+      border: 1px solid transparent;
+      padding: 5px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .spec-tab.active {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.14);
+    }
+
+    .spec-pane {
+      display: none;
+    }
+
+    .spec-pane.active {
+      display: block;
+    }
+
+    .spec-table-wrap {
+      overflow-x: auto;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+    }
+
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      text-align: left;
+    }
+
+    .spec-table th {
+      background: rgba(255, 255, 255, 0.05);
+      color: #cbd5e1;
+      font-weight: 600;
+      padding: 9px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      white-space: nowrap;
+    }
+
+    .spec-table td {
+      padding: 8.5px 12px;
+      color: #e5e7eb;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      vertical-align: top;
+    }
+
+    .spec-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .spec-table tr.is-current td {
+      background: rgba(79, 70, 229, 0.22);
+    }
+
+    .spec-table code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #a5b4fc;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 1px 5px;
+      border-radius: 4px;
+    }
+
+    .token-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 12px;
+    }
+
+    .token-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 12px;
+    }
+
+    .token-box h4 {
+      margin: 0 0 8px;
+      font-size: 12px;
+      font-weight: 650;
+      color: #c7d2fe;
+    }
+
+    .token-kv {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 3.5px 0;
+      color: #d1d5db;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .token-kv:last-child {
+      border-bottom: 0;
+    }
+
+    .token-kv code {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #93c5fd;
+    }
+
+    .swatch-inline {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      vertical-align: -1px;
+      margin-right: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    @media (max-width: 640px) {
+      .stage {
+        padding: 40px 14px 32px;
+      }
+      .doc-dock-inner {
+        padding: 14px 16px 18px;
+      }
+      .rl-titlebar, .rl-slot, .rl-recent, .rl-cta {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- 矢量图标定义 -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="ico-brand" viewBox="0 0 16 16">
+        <path d="M3 8h6.5M7 4.5 10.5 8 7 11.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <circle cx="12.5" cy="8" r="1.4" fill="currentColor"/>
+      </symbol>
+      <symbol id="ico-min" viewBox="0 0 12 12">
+        <path d="M2.5 6h7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="ico-close" viewBox="0 0 12 12">
+        <path d="M3 3l6 6M9 3 3 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="ico-exe-empty" viewBox="0 0 22 22">
+        <rect x="3" y="4" width="16" height="14" rx="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <path d="M3 8h16M11 11v4M9 13h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="ico-exe-app" viewBox="0 0 22 22">
+        <rect x="3" y="4" width="16" height="14" rx="2.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <path d="M3 8h16" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M7.5 11.5 9.8 13l-2.3 1.5M11.5 14.5h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </symbol>
+      <symbol id="ico-play" viewBox="0 0 16 16">
+        <path d="M5 3.6v8.8L12.2 8 5 3.6Z" fill="currentColor"/>
+      </symbol>
+      <symbol id="ico-spin" viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-opacity="0.24" stroke-width="1.8" fill="none"/>
+        <path d="M8 2.5A5.5 5.5 0 0 1 13.5 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+      </symbol>
+      <symbol id="ico-check" viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <path d="M5.4 8.1 7.2 9.9 10.8 6.3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </symbol>
+      <symbol id="ico-retry" viewBox="0 0 16 16">
+        <path d="M12.5 8a4.5 4.5 0 1 1-1.3-3.2M12.5 3.2v2.4h-2.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </symbol>
+      <symbol id="ico-error" viewBox="0 0 16 16">
+        <circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <path d="M8 5v3.5M8 10.8h.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="ico-warn" viewBox="0 0 16 16">
+        <path d="M8 2.4 14 13H2L8 2.4Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round" fill="none"/>
+        <path d="M8 6.4v3M8 11.2h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </symbol>
+      <symbol id="ico-shield-off" viewBox="0 0 16 16">
+        <path d="M8 2.2 13 4.2v3.6c0 3-2.1 5-5 6-2.9-1-5-3-5-6V4.2L8 2.2Z" stroke="currentColor" stroke-width="1.45" stroke-linejoin="round" fill="none"/>
+        <path d="M8 5.6v3M8 10.6h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- 隐藏的真实文件选择器，支持直接选择本机 .exe -->
+  <input id="fileInput" type="file" accept=".exe" hidden>
+
+  <!-- =======================================================================
+       主体画布：仅包含 1 个面向用户的真实可操作窗体
+       ======================================================================= -->
+  <main class="stage" aria-label="产品界面可操作原型">
+    <div id="frameWrap" class="app-frame-wrap">
+      <!-- 真实产品窗体（100% 面向用户，不含任何文档说明） -->
+      <section id="winApp" class="win-app" aria-label="代理启动器（非 TUN）">
+        <header class="win-titlebar">
+          <div class="win-brand">
+            <span class="win-logo" aria-hidden="true"><svg width="12" height="12"><use href="#ico-brand"/></svg></span>
+            <span class="win-title">代理启动器</span>
+            <span class="win-mode-tag">非 TUN</span>
+          </div>
+          <div class="win-right">
+            <button id="proxyTrigger" class="proxy-trigger" type="button" title="本地 SOCKS5 代理入口（点击修改）">:10808</button>
+            <div class="win-controls">
+              <button id="btnMin" class="win-ctrl" type="button" title="最小化" aria-label="最小化">
+                <svg width="10" height="10"><use href="#ico-min"/></svg>
+              </button>
+              <button id="btnClose" class="win-ctrl close" type="button" title="关闭" aria-label="关闭">
+                <svg width="10" height="10"><use href="#ico-close"/></svg>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div class="win-body">
+          <!-- 1. 目标程序选择槽 + 按需出现的极简最近记录行 -->
+          <div class="target-section">
+            <div id="exeSlot" class="exe-slot empty" role="group" aria-label="目标程序">
+              <div id="exeIconBox" class="exe-icon-box placeholder" aria-hidden="true">
+                <svg id="exeIconSvg" width="20" height="20"><use href="#ico-exe-empty"/></svg>
+              </div>
+              <div class="exe-meta">
+                <div class="exe-title-row">
+                  <p id="exeTitle" class="exe-title">选择目标程序</p>
+                  <span id="exeMissingBadge" class="exe-missing-badge" hidden>文件缺失</span>
+                </div>
+                <p id="exeSub" class="exe-sub">点击选择或拖入 .exe 文件</p>
+              </div>
+              <button id="exeActionBtn" class="exe-btn pick" type="button">选择</button>
+              <span id="liveDot" class="live-dot" hidden aria-hidden="true"></span>
+            </div>
+
+            <!-- 按需出现的极简最近记录（仅存在其他记忆项时展开，最多展示 3 项） -->
+            <div id="recentWrap" class="recent-wrap">
+              <div class="recent-inner">
+                <div id="recentBar" class="recent-bar" aria-label="最近使用的程序">
+                  <span class="recent-label">最近</span>
+                  <div id="recentChips" class="recent-chips"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 1c. 按需展开的轻量本地 SOCKS5 入口确认区（默认收起，平时不占空间） -->
+          <div id="proxyPanelWrap" class="proxy-panel-wrap" aria-label="本地 SOCKS5 入口配置">
+            <div class="proxy-panel-inner">
+              <div class="proxy-card">
+                <div class="proxy-card-head">
+                  <div>
+                    <p id="proxyCardTitle" class="proxy-card-title">本地 SOCKS5 代理</p>
+                    <p id="proxyCardHint" class="proxy-card-hint" hidden></p>
+                  </div>
+                </div>
+
+                <div id="candidateRow" class="candidate-row" hidden></div>
+
+                <div class="proxy-fields">
+                  <div class="proxy-field">
+                    <label for="proxyHost">本机地址</label>
+                    <input id="proxyHost" class="proxy-input" type="text" value="127.0.0.1" autocomplete="off">
+                  </div>
+                  <div class="proxy-field">
+                    <label for="proxyPort">SOCKS5 端口</label>
+                    <input id="proxyPort" class="proxy-input" type="text" inputmode="numeric" placeholder="10808" autocomplete="off">
+                  </div>
+                </div>
+
+                <div id="proxyAuthFields" class="proxy-auth-fields" hidden>
+                  <div class="proxy-field">
+                    <label for="proxyUser">用户名（可选）</label>
+                    <input id="proxyUser" class="proxy-input" type="text" autocomplete="off">
+                  </div>
+                  <div class="proxy-field">
+                    <label for="proxyPass">密码（可选）</label>
+                    <input id="proxyPass" class="proxy-input" type="password" autocomplete="off">
+                  </div>
+                </div>
+
+                <div class="proxy-card-foot">
+                  <button id="proxyAuthToggle" class="proxy-auth-toggle" type="button">+ 需要账号密码</button>
+                  <div class="proxy-actions">
+                    <button id="proxyCancelBtn" class="mini-btn ghost" type="button">取消</button>
+                    <button id="proxySaveBtn" class="mini-btn confirm" type="button">保存</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. 主操作按钮 -->
+          <button id="ctaBtn" class="cta-btn disabled" type="button" disabled>
+            <svg id="ctaIcon" width="14" height="14" aria-hidden="true"><use href="#ico-play"/></svg>
+            <span id="ctaText">经代理启动</span>
+          </button>
+
+          <!-- 3. 按需出现的状态反馈条 -->
+          <div id="feedbackWrap" class="feedback-wrap" aria-live="polite">
+            <div class="feedback-inner">
+              <div id="feedbackBar" class="feedback-bar info">
+                <svg id="feedbackIcon" width="15" height="15" aria-hidden="true"><use href="#ico-spin"/></svg>
+                <div class="feedback-copy">
+                  <span id="feedbackTitle" class="feedback-title"></span>
+                  <span id="feedbackDesc" class="feedback-desc"></span>
+                </div>
+                <button id="feedbackAction" class="feedback-link" type="button" hidden>修改入口</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 工程红线标注叠加层（默认隐藏，通过文档区开关控制） -->
+      <div class="redline-layer" aria-hidden="true">
+        <div class="rl-width"><span class="rl-tag">388px · radius 12</span></div>
+        <div class="rl-titlebar"><span class="rl-tag">38px</span></div>
+        <div class="rl-slot"><span class="rl-tag">min 68px</span></div>
+        <div id="rlRecent" class="rl-recent"><span class="rl-tag">recent 24px</span></div>
+        <div class="rl-cta"><span class="rl-tag">44px</span></div>
+        <div class="rl-pad-left"><span class="rl-mini">20</span></div>
+        <div class="rl-pad-right"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- =======================================================================
+       显眼隔离的底部工程区：实现文档控制与规格面板（明确非产品界面）
+       ======================================================================= -->
+  <aside class="doc-dock" aria-label="实现文档控制与规格区（非产品界面）">
+    <div class="doc-dock-inner">
+      <div class="doc-bar-top">
+        <div class="doc-identity">
+          <span class="doc-pill">非产品界面 · UI 实现文档</span>
+          <span class="doc-state-readout">当前状态 <strong id="docStateLabel">READY / 待启动</strong></span>
+          <span id="docEventEcho" class="doc-event-echo"></span>
+        </div>
+        <div class="doc-toggles">
+          <button id="toggleRedline" class="doc-btn" type="button" aria-pressed="false">尺寸标注</button>
+          <button id="toggleSpec" class="doc-btn" type="button" aria-expanded="false">实现规格表</button>
+        </div>
+      </div>
+
+      <!-- 模拟后端事件、代理探测与记忆场景验证 -->
+      <div class="doc-controls-grid">
+        <div class="ctrl-group">
+          <span class="ctrl-label">打开场景：</span>
+          <button id="simWithHistory" class="doc-btn" type="button">再次打开（带记忆）</button>
+          <button id="simFirstLaunch" class="doc-btn" type="button">首次打开（无记录）</button>
+          <button id="simPathMissing" class="doc-btn err-action" type="button">模拟记忆路径失效</button>
+        </div>
+
+        <div class="ctrl-group">
+          <label class="ctrl-label" for="proxyProbeMode">代理入口场景：</label>
+          <select id="proxyProbeMode" class="doc-select">
+            <option value="saved">已保存入口（127.0.0.1:10808）</option>
+            <option value="probe_unique">未配置：探测到唯一入口（自动保存）</option>
+            <option value="probe_multi">未配置：探测到多个候选端口</option>
+            <option value="probe_none">未配置：未探测到可用入口</option>
+            <option value="probe_auth">未配置：入口需要认证</option>
+          </select>
+        </div>
+
+        <div class="ctrl-group">
+          <label class="ctrl-label" for="launchOutcome">启动结果：</label>
+          <select id="launchOutcome" class="doc-select">
+            <option value="success">正常：提权接管并启动</option>
+            <option value="fail_proxy">失败：无法连接本地代理入口</option>
+            <option value="fail_uac">失败：取消 UAC 管理员授权</option>
+            <option value="fail_driver">失败：WinDivert 驱动加载异常</option>
+          </select>
+        </div>
+
+        <div class="ctrl-group">
+          <span class="ctrl-label">运行期事件：</span>
+          <button id="simProxyDrop" class="doc-btn warn-action" type="button" disabled>模拟代理中断</button>
+          <button id="simProxyRecover" class="doc-btn ok-action" type="button" disabled>模拟代理恢复</button>
+          <button id="simProtectionLost" class="doc-btn err-action" type="button" disabled>模拟保护中断</button>
+          <button id="simProtectionRecover" class="doc-btn ok-action" type="button" disabled>模拟保护恢复</button>
+          <button id="simProcessExit" class="doc-btn" type="button" disabled>模拟进程全部退出</button>
+        </div>
+      </div>
+
+      <!-- 可展开的精准实现规格抽屉 -->
+      <div id="specDrawer" class="spec-drawer">
+        <div class="spec-tabs" role="tablist">
+          <button class="spec-tab active" type="button" data-tab="states" role="tab" aria-selected="true">状态机与控件行为（9 态）</button>
+          <button class="spec-tab" type="button" data-tab="proxy" role="tab" aria-selected="false">本地代理入口交互</button>
+          <button class="spec-tab" type="button" data-tab="memory" role="tab" aria-selected="false">记忆历史规范</button>
+          <button class="spec-tab" type="button" data-tab="tokens" role="tab" aria-selected="false">尺寸与色彩 Token</button>
+        </div>
+
+        <!-- Tab 1: 全 9 态状态机映射表（与逻辑实现方案 1:1 对齐） -->
+        <div class="spec-pane active" data-pane="states">
+          <div class="spec-table-wrap">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th>状态码</th>
+                  <th>对应逻辑阶段</th>
+                  <th>目标文件槽 &amp; 最近行</th>
+                  <th>主操作按钮</th>
+                  <th>底部状态反馈条</th>
+                </tr>
+              </thead>
+              <tbody id="stateSpecBody">
+                <tr data-row-state="IDLE">
+                  <td><code>IDLE</code></td>
+                  <td>空闲（无记录或未选）</td>
+                  <td>虚线可点 / 拖入 .exe；按钮「选择」；无其他历史时隐藏最近行</td>
+                  <td>禁用 · 「经代理启动」</td>
+                  <td>隐藏（不占位）</td>
+                </tr>
+                <tr data-row-state="READY">
+                  <td><code>READY</code></td>
+                  <td>就绪（含自动恢复）</td>
+                  <td>文件名 + 单行等宽路径；按钮「更换」；有其他历史时显示最近芯片行</td>
+                  <td>主色可点 · 「经代理启动」</td>
+                  <td>隐藏（不占位）</td>
+                </tr>
+                <tr data-row-state="MISSING">
+                  <td><code>MISSING</code></td>
+                  <td>已记忆路径失效</td>
+                  <td>红框 + 「文件缺失」徽章；按钮「重新定位」；仍可点最近芯片切换</td>
+                  <td>禁用 · 「经代理启动」</td>
+                  <td>error：原路径文件已移动或不存在</td>
+                </tr>
+                <tr data-row-state="PREPARING">
+                  <td><code>PREPARING</code></td>
+                  <td>启动准备中</td>
+                  <td>主槽锁定 + 脉动蓝点；最近行淡化禁用；标题栏入口芯片禁用</td>
+                  <td>浅蓝加载态 · 「正在准备启动…」</td>
+                  <td>info：核验本地代理、请求接管并启动目标程序</td>
+                </tr>
+                <tr data-row-state="RUNNING">
+                  <td><code>RUNNING</code></td>
+                  <td>代理运行中</td>
+                  <td>主槽锁定 + 绿点；最近行淡化禁用</td>
+                  <td>浅绿运行态 · 「正在代理运行中」</td>
+                  <td>success：程序已启动，流量已通过本地代理接管（非 TUN）</td>
+                </tr>
+                <tr data-row-state="PROXY_LOST">
+                  <td><code>PROXY_LOST</code></td>
+                  <td>运行期代理中断</td>
+                  <td>主槽锁定 + 琥珀点；最近行淡化禁用</td>
+                  <td>中性等待态 · 「等待代理恢复…」</td>
+                  <td>warn：本地代理连接中断，已阻止直连；恢复后新请求自动续接</td>
+                </tr>
+                <tr data-row-state="PROTECTION_INTERRUPTED">
+                  <td><code>PROTECTION_INTERRUPTED</code></td>
+                  <td>拦截保护异常中断</td>
+                  <td>主槽红框锁定 + 脉动红点；最近行淡化禁用</td>
+                  <td>浅红告警态 · 「保护异常中断」</td>
+                  <td>error：代理保护意外中断，可能无法阻止直连；保留目标软件，尝试恢复并建议重启目标程序（<strong>严禁</strong>显示“已阻止直连”）</td>
+                </tr>
+                <tr data-row-state="RECOVERING">
+                  <td><code>RECOVERING</code></td>
+                  <td>会话回收中</td>
+                  <td>主槽锁定 + 脉动蓝点；最近行淡化禁用</td>
+                  <td>浅蓝加载态 · 「正在回收会话…」</td>
+                  <td>info：受管进程已全部退出，正在释放本会话资源</td>
+                </tr>
+                <tr data-row-state="FAILED">
+                  <td><code>FAILED</code></td>
+                  <td>启动失败 / 已回滚</td>
+                  <td>解锁可更换；最近行恢复可切换</td>
+                  <td>主色可点 · 「重试」</td>
+                  <td>error：按实际阶段显示失败原因（入口不可达时附「修改入口」快捷按钮）</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab 2: 本地代理入口交互规范 -->
+        <div class="spec-pane" data-pane="proxy">
+          <div class="spec-table-wrap">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th>场景</th>
+                  <th>界面表现与行为约定</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>常态展示</td>
+                  <td>主界面不常驻配置表单；仅在标题栏右侧窗口按钮旁放一枚极低权重微标（如 <code>:10808</code> 或 <code>未配置</code>），空闲态点击可展开/收起内嵌配置卡，运行锁定态禁用点击。</td>
+                </tr>
+                <tr>
+                  <td>已保存入口</td>
+                  <td>点「经代理启动」直接复用已保存的本地 SOCKS5 入口，不弹出配置卡；若该入口不可达，进入 <code>FAILED</code> 并在反馈条右侧提供「修改入口」快捷操作，不静默切端口。</td>
+                </tr>
+                <tr>
+                  <td>未配置：唯一探测</td>
+                  <td>首次点「经代理启动」时探测常见回环 SOCKS5 端口；若仅找到唯一可用入口，自动保存并直接继续启动，无需用户干预。</td>
+                </tr>
+                <tr>
+                  <td>未配置：多候选 / 未找到 / 需认证</td>
+                  <td>原位平滑展开内嵌「本地 SOCKS5 入口」卡片（388px 宽内紧凑排版）：多候选时提供一键点选芯片；未找到时提示手填地址与端口；需认证时自动展开用户名/密码输入框。点击「保存并启动」后保存复用并自动接续启动。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab 3: 记忆历史规范 -->
+        <div class="spec-pane" data-pane="memory">
+          <div class="spec-table-wrap">
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th>规范项</th>
+                  <th>精确交互与展示定义</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>默认恢复</td>
+                  <td>再次打开启动器时自动将上次选定的 <code>.exe</code> 填入主槽并进入 <code>READY</code>，不自动启动。</td>
+                </tr>
+                <tr>
+                  <td>最近芯片行显隐</td>
+                  <td>仅展示除当前程序外的其他历史项（最多记忆 <code>4</code> 项、芯片行最多展示 <code>3</code> 枚）；无其他历史时整行折叠隐藏。</td>
+                </tr>
+                <tr>
+                  <td>一键切换与移除</td>
+                  <td>点芯片即切换，点右侧 <code>×</code> 移除该条记忆；移除当前项时清空选择进入 <code>IDLE</code>，不自动改选。</td>
+                </tr>
+                <tr>
+                  <td>路径失效</td>
+                  <td>文件移动或删除时进入 <code>MISSING</code> 态并保留记录，按钮改为「重新定位」，仍可点最近行切到其他有效程序。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab 4: 尺寸与色彩 Token -->
+        <div class="spec-pane" data-pane="tokens">
+          <div class="token-grid">
+            <div class="token-box">
+              <h4>窗体与布局尺寸</h4>
+              <div class="token-kv"><span>窗口宽度（固定）</span><code>388px</code></div>
+              <div class="token-kv"><span>标题栏高度 / 端口微标</span><code>38px / 22px · 10.5px Mono</code></div>
+              <div class="token-kv"><span>内容区内边距</span><code>18px 20px 20px</code></div>
+              <div class="token-kv"><span>主槽高 / 槽与最近行距</span><code>min 68px / 8px</code></div>
+              <div class="token-kv"><span>最近芯片高 / 圆角 / 最大宽</span><code>24px / 6px / 152px</code></div>
+              <div class="token-kv"><span>块间距 / 主按钮高</span><code>14px / 44px</code></div>
+            </div>
+
+            <div class="token-box">
+              <h4>语义色彩 Token</h4>
+              <div class="token-kv"><span><span class="swatch-inline" style="background:#2563eb"></span>主色 Primary</span><code>#2563EB / #1D4ED8</code></div>
+              <div class="token-kv"><span><span class="swatch-inline" style="background:#047857"></span>运行 Success</span><code>#047857 / #ECFDF5</code></div>
+              <div class="token-kv"><span><span class="swatch-inline" style="background:#b45309"></span>代理中断 Warn</span><code>#B45309 / #FFFBEB</code></div>
+              <div class="token-kv"><span><span class="swatch-inline" style="background:#be123c"></span>保护中断 / 失败 Error</span><code>#BE123C / #FFF1F2</code></div>
+              <div class="token-kv"><span><span class="swatch-inline" style="background:#0f172a"></span>主文字 / 次文字</span><code>#0F172A / #64748B</code></div>
+              <div class="token-kv"><span><span class="swatch-inline" style="background:#e2e8f0"></span>边框 / 浅底</span><code>#E2E8F0 / #F8FAFC</code></div>
+            </div>
+
+            <div class="token-box">
+              <h4>字体与动效曲线</h4>
+              <div class="token-kv"><span>标题栏 / 模式微标</span><code>12.5px 600 / 10.5px 600</code></div>
+              <div class="token-kv"><span>文件名 / 路径</span><code>14px 600 / 11px Mono</code></div>
+              <div class="token-kv"><span>内嵌输入框高度 / 字号</span><code>32px / 12px Mono</code></div>
+              <div class="token-kv"><span>微交互过渡</span><code>140ms cubic-bezier(.2,.8,.2,1)</code></div>
+              <div class="token-kv"><span>面板展开过渡</span><code>220ms grid-template-rows</code></div>
+              <div class="token-kv"><span>状态点呼吸周期</span><code>green 2.2s / red 1.15s</code></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script>
+    (() => {
+      const MAX_HISTORY = 4;
+
+      const DEFAULT_HISTORY = [
+        { name: 'ExampleApp.exe', path: 'C:\\Program Files\\ExampleApp\\ExampleApp.exe', missing: false },
+        { name: 'Discord.exe', path: 'C:\\Apps\\Discord\\Update.exe', missing: false },
+        { name: 'Telegram.exe', path: 'D:\\Apps\\Telegram Desktop\\Telegram.exe', missing: false }
+      ];
+
+      const FAIL_PRESETS = {
+        fail_proxy: {
+          title: '无法连接本地代理入口',
+          desc: '请确认代理软件已启动并保持连接，或检查端口后重试',
+          canEditProxy: true
+        },
+        fail_uac: {
+          title: '未获得管理员权限（已取消 UAC）',
+          desc: '网络接管需要加载驱动权限，目标程序未启动，请重试',
+          canEditProxy: false
+        },
+        fail_driver: {
+          title: 'WinDivert 驱动加载失败',
+          desc: '可能受系统策略或安全软件拦截，目标程序未启动',
+          canEditProxy: false
+        }
+      };
+
+      const STATE_LABELS = {
+        IDLE: 'IDLE / 初始态（无记录）',
+        READY: 'READY / 待启动',
+        MISSING: 'MISSING / 已记忆路径失效',
+        PREPARING: 'PREPARING / 启动准备中',
+        RUNNING: 'RUNNING / 代理运行中',
+        PROXY_LOST: 'PROXY_LOST / 运行期代理中断',
+        PROTECTION_INTERRUPTED: 'PROTECTION_INTERRUPTED / 拦截保护异常中断',
+        RECOVERING: 'RECOVERING / 会话回收中',
+        FAILED: 'FAILED / 启动失败'
+      };
+
+      const state = {
+        phase: 'READY',
+        file: { ...DEFAULT_HISTORY[0] },
+        history: DEFAULT_HISTORY.map((item) => ({ ...item })),
+        proxy: { host: '127.0.0.1', port: '10808', user: '', pass: '' },
+        proxyConfigured: true,
+        proxyPanelOpen: false,
+        proxyPanelReason: 'edit', // 'edit' | 'multi' | 'none' | 'auth'
+        proxyCandidates: [],
+        proxyAuthOpen: false,
+        resumeLaunchAfterSave: false,
+        error: null,
+        timer: null
+      };
+
+      const $ = (id) => document.getElementById(id);
+      const frameWrap = $('frameWrap');
+      const winApp = $('winApp');
+      const fileInput = $('fileInput');
+      const proxyTrigger = $('proxyTrigger');
+      const exeSlot = $('exeSlot');
+      const exeIconBox = $('exeIconBox');
+      const exeIconSvg = $('exeIconSvg');
+      const exeTitle = $('exeTitle');
+      const exeMissingBadge = $('exeMissingBadge');
+      const exeSub = $('exeSub');
+      const exeActionBtn = $('exeActionBtn');
+      const liveDot = $('liveDot');
+      const recentWrap = $('recentWrap');
+      const recentBar = $('recentBar');
+      const recentChips = $('recentChips');
+      const rlRecent = $('rlRecent');
+
+      // Proxy inline panel
+      const proxyPanelWrap = $('proxyPanelWrap');
+      const proxyCardTitle = $('proxyCardTitle');
+      const proxyCardHint = $('proxyCardHint');
+      const candidateRow = $('candidateRow');
+      const proxyHost = $('proxyHost');
+      const proxyPort = $('proxyPort');
+      const proxyAuthFields = $('proxyAuthFields');
+      const proxyUser = $('proxyUser');
+      const proxyPass = $('proxyPass');
+      const proxyAuthToggle = $('proxyAuthToggle');
+      const proxyCancelBtn = $('proxyCancelBtn');
+      const proxySaveBtn = $('proxySaveBtn');
+
+      const ctaBtn = $('ctaBtn');
+      const ctaIcon = $('ctaIcon');
+      const ctaText = $('ctaText');
+      const feedbackWrap = $('feedbackWrap');
+      const feedbackBar = $('feedbackBar');
+      const feedbackIcon = $('feedbackIcon');
+      const feedbackTitle = $('feedbackTitle');
+      const feedbackDesc = $('feedbackDesc');
+      const feedbackAction = $('feedbackAction');
+
+      // Doc dock refs
+      const docStateLabel = $('docStateLabel');
+      const docEventEcho = $('docEventEcho');
+      const proxyProbeMode = $('proxyProbeMode');
+      const launchOutcome = $('launchOutcome');
+      const simWithHistory = $('simWithHistory');
+      const simFirstLaunch = $('simFirstLaunch');
+      const simPathMissing = $('simPathMissing');
+      const simProxyDrop = $('simProxyDrop');
+      const simProxyRecover = $('simProxyRecover');
+      const simProtectionLost = $('simProtectionLost');
+      const simProtectionRecover = $('simProtectionRecover');
+      const simProcessExit = $('simProcessExit');
+      const toggleRedline = $('toggleRedline');
+      const toggleSpec = $('toggleSpec');
+      const specDrawer = $('specDrawer');
+      const btnMin = $('btnMin');
+      const btnClose = $('btnClose');
+
+      function setIcon(svgEl, symbolId, spinning = false) {
+        svgEl.innerHTML = `<use href="#${symbolId}"/>`;
+        svgEl.classList.toggle('spin', spinning);
+      }
+
+      function echoDoc(msg) {
+        docEventEcho.textContent = msg ? `· ${msg}` : '';
+      }
+
+      function clearPendingTimer() {
+        if (state.timer) {
+          clearTimeout(state.timer);
+          state.timer = null;
+        }
+      }
+
+      function isLocked() {
+        return ['PREPARING', 'RUNNING', 'PROXY_LOST', 'PROTECTION_INTERRUPTED', 'RECOVERING'].includes(state.phase);
+      }
+
+      function upsertHistory(item) {
+        const key = item.path.toLowerCase();
+        state.history = [
+          { ...item },
+          ...state.history.filter((h) => h.path.toLowerCase() !== key)
+        ].slice(0, MAX_HISTORY);
+      }
+
+      function getOtherRecents() {
+        const curKey = state.file ? state.file.path.toLowerCase() : null;
+        return state.history.filter((h) => !curKey || h.path.toLowerCase() !== curKey).slice(0, 3);
+      }
+
+      function openProxyPanel(reason, candidates = [], resumeLaunch = false) {
+        if (isLocked()) return;
+        state.proxyPanelOpen = true;
+        state.proxyPanelReason = reason;
+        state.proxyCandidates = candidates;
+        state.resumeLaunchAfterSave = resumeLaunch;
+        state.proxyAuthOpen = reason === 'auth' || Boolean(state.proxy.user);
+
+        proxyHost.value = state.proxy.host || '127.0.0.1';
+        proxyPort.value = candidates[0] ? candidates[0].port : (state.proxyConfigured ? state.proxy.port : '');
+        proxyUser.value = state.proxy.user || '';
+        proxyPass.value = state.proxy.pass || '';
+        render();
+        setTimeout(() => (reason === 'auth' ? proxyUser : proxyPort).focus(), 160);
+      }
+
+      function closeProxyPanel() {
+        state.proxyPanelOpen = false;
+        state.resumeLaunchAfterSave = false;
+        render();
+      }
+
+      function renderProxyPanel(locked) {
+        const show = state.proxyPanelOpen && !locked;
+        proxyPanelWrap.classList.toggle('visible', show);
+        proxyTrigger.classList.toggle('active', show);
+        proxyTrigger.classList.toggle('unset', !state.proxyConfigured);
+        proxyTrigger.disabled = locked;
+        proxyTrigger.textContent = state.proxyConfigured ? `:${state.proxy.port}` : '未配置';
+        proxyTrigger.title = state.proxyConfigured
+          ? `本地 SOCKS5 入口：${state.proxy.host}:${state.proxy.port}（点击修改）`
+          : '尚未保存本地 SOCKS5 入口（点击配置）';
+
+        if (!show) return;
+
+        if (state.proxyPanelReason === 'multi') {
+          proxyCardTitle.textContent = '选择本地 SOCKS5 代理';
+          proxyCardHint.textContent = '';
+          proxyCardHint.hidden = true;
+        } else if (state.proxyPanelReason === 'none') {
+          proxyCardTitle.textContent = '未检测到本地代理';
+          proxyCardHint.textContent = '请填写本地 SOCKS5 地址与端口';
+          proxyCardHint.hidden = false;
+        } else if (state.proxyPanelReason === 'auth') {
+          proxyCardTitle.textContent = '需要代理认证';
+          proxyCardHint.textContent = '';
+          proxyCardHint.hidden = true;
+        } else {
+          proxyCardTitle.textContent = '本地 SOCKS5 代理';
+          proxyCardHint.textContent = '';
+          proxyCardHint.hidden = true;
+        }
+
+        const hasCandidates = state.proxyCandidates.length > 0;
+        candidateRow.hidden = !hasCandidates;
+        candidateRow.innerHTML = '';
+        if (hasCandidates) {
+          state.proxyCandidates.forEach((cand) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'candidate-chip' + (proxyPort.value === cand.port ? ' selected' : '');
+            btn.textContent = `${cand.host}:${cand.port}`;
+            btn.addEventListener('click', () => {
+              proxyHost.value = cand.host;
+              proxyPort.value = cand.port;
+              candidateRow.querySelectorAll('.candidate-chip').forEach((el) => el.classList.remove('selected'));
+              btn.classList.add('selected');
+            });
+            candidateRow.appendChild(btn);
+          });
+        }
+
+        proxyAuthFields.hidden = !state.proxyAuthOpen;
+        proxyAuthToggle.textContent = state.proxyAuthOpen ? '− 收起账号密码' : '+ 需要账号密码';
+        proxySaveBtn.textContent = state.resumeLaunchAfterSave ? '保存并启动' : '保存';
+      }
+
+      function renderRecentChips(locked) {
+        const others = getOtherRecents();
+        const show = others.length > 0;
+        recentWrap.classList.toggle('visible', show);
+        recentBar.classList.toggle('locked', locked);
+        rlRecent.style.display = show ? 'flex' : 'none';
+
+        recentChips.innerHTML = '';
+        others.forEach((item) => {
+          const chip = document.createElement('div');
+          chip.className = 'recent-chip';
+          chip.title = item.path;
+
+          const pickBtn = document.createElement('button');
+          pickBtn.type = 'button';
+          pickBtn.className = 'recent-chip-pick';
+          pickBtn.textContent = item.name;
+          pickBtn.addEventListener('click', () => {
+            if (isLocked()) return;
+            selectFile(item.name, item.path, Boolean(item.missing));
+            echoDoc(`从最近记录一键切换：${item.name}`);
+          });
+
+          const delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'recent-chip-del';
+          delBtn.title = `从最近记录移除 ${item.name}`;
+          delBtn.setAttribute('aria-label', `移除 ${item.name}`);
+          delBtn.innerHTML = '<svg width="8" height="8"><use href="#ico-close"/></svg>';
+          delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (isLocked()) return;
+            state.history = state.history.filter((h) => h.path.toLowerCase() !== item.path.toLowerCase());
+            echoDoc(`已从记忆中移除：${item.name}`);
+            render();
+          });
+
+          chip.appendChild(pickBtn);
+          chip.appendChild(delBtn);
+          recentChips.appendChild(chip);
+        });
+      }
+
+      function render() {
+        const locked = isLocked();
+        const hasFile = Boolean(state.file);
+        const isMissing = state.phase === 'MISSING';
+        const isProtLost = state.phase === 'PROTECTION_INTERRUPTED';
+
+        // 1. 文件槽状态
+        exeSlot.className =
+          'exe-slot' +
+          (!hasFile ? ' empty' : isMissing ? ' missing' : isProtLost ? ' danger locked' : locked ? ' locked' : '');
+        exeMissingBadge.hidden = !isMissing;
+
+        if (!hasFile) {
+          exeIconBox.className = 'exe-icon-box placeholder';
+          setIcon(exeIconSvg, 'ico-exe-empty');
+          exeTitle.textContent = '选择目标程序';
+          exeSub.textContent = '点击选择或拖入 .exe 文件';
+          exeSub.className = 'exe-sub';
+          exeSub.removeAttribute('title');
+          exeActionBtn.hidden = false;
+          exeActionBtn.className = 'exe-btn pick';
+          exeActionBtn.textContent = '选择';
+          liveDot.hidden = true;
+        } else {
+          exeTitle.textContent = state.file.name;
+          exeSub.textContent = state.file.path;
+          exeSub.className = 'exe-sub is-path';
+          exeSub.title = state.file.path;
+          setIcon(exeIconSvg, 'ico-exe-app');
+
+          if (isMissing) {
+            exeIconBox.className = 'exe-icon-box missing';
+            exeActionBtn.hidden = false;
+            exeActionBtn.className = 'exe-btn pick';
+            exeActionBtn.textContent = '重新定位';
+            liveDot.hidden = true;
+          } else if (state.phase === 'RUNNING') {
+            exeIconBox.className = 'exe-icon-box running';
+            exeActionBtn.hidden = true;
+            liveDot.hidden = false;
+            liveDot.className = 'live-dot green';
+          } else if (state.phase === 'PROXY_LOST') {
+            exeIconBox.className = 'exe-icon-box warn';
+            exeActionBtn.hidden = true;
+            liveDot.hidden = false;
+            liveDot.className = 'live-dot amber';
+          } else if (isProtLost) {
+            exeIconBox.className = 'exe-icon-box danger';
+            exeActionBtn.hidden = true;
+            liveDot.hidden = false;
+            liveDot.className = 'live-dot red';
+          } else if (state.phase === 'PREPARING' || state.phase === 'RECOVERING') {
+            exeIconBox.className = 'exe-icon-box selected';
+            exeActionBtn.hidden = true;
+            liveDot.hidden = false;
+            liveDot.className = 'live-dot blue';
+          } else {
+            exeIconBox.className = 'exe-icon-box selected';
+            exeActionBtn.hidden = false;
+            exeActionBtn.className = 'exe-btn change';
+            exeActionBtn.textContent = '更换';
+            liveDot.hidden = true;
+          }
+        }
+
+        // 1b. 最近记录行 & 1c. 内嵌代理入口卡
+        renderRecentChips(locked);
+        renderProxyPanel(locked);
+
+        // 2. 主操作按钮
+        switch (state.phase) {
+          case 'IDLE':
+          case 'MISSING':
+            ctaBtn.className = 'cta-btn disabled';
+            ctaBtn.disabled = true;
+            setIcon(ctaIcon, 'ico-play');
+            ctaText.textContent = '经代理启动';
+            break;
+          case 'READY':
+            ctaBtn.className = 'cta-btn primary';
+            ctaBtn.disabled = false;
+            setIcon(ctaIcon, 'ico-play');
+            ctaText.textContent = '经代理启动';
+            break;
+          case 'PREPARING':
+            ctaBtn.className = 'cta-btn loading';
+            ctaBtn.disabled = true;
+            setIcon(ctaIcon, 'ico-spin', true);
+            ctaText.textContent = '正在准备启动…';
+            break;
+          case 'RUNNING':
+            ctaBtn.className = 'cta-btn running';
+            ctaBtn.disabled = true;
+            setIcon(ctaIcon, 'ico-check');
+            ctaText.textContent = '正在代理运行中';
+            break;
+          case 'PROXY_LOST':
+            ctaBtn.className = 'cta-btn waiting';
+            ctaBtn.disabled = true;
+            setIcon(ctaIcon, 'ico-warn');
+            ctaText.textContent = '等待代理恢复…';
+            break;
+          case 'PROTECTION_INTERRUPTED':
+            ctaBtn.className = 'cta-btn danger-status';
+            ctaBtn.disabled = true;
+            setIcon(ctaIcon, 'ico-shield-off');
+            ctaText.textContent = '保护异常中断';
+            break;
+          case 'RECOVERING':
+            ctaBtn.className = 'cta-btn loading';
+            ctaBtn.disabled = true;
+            setIcon(ctaIcon, 'ico-spin', true);
+            ctaText.textContent = '正在回收会话…';
+            break;
+          case 'FAILED':
+            ctaBtn.className = 'cta-btn primary';
+            ctaBtn.disabled = false;
+            setIcon(ctaIcon, 'ico-retry');
+            ctaText.textContent = '重试';
+            break;
+        }
+
+        // 3. 按需状态反馈条
+        if (state.phase === 'MISSING') {
+          showFeedback('error', 'ico-error', false, '原路径文件已移动或不存在', '请重新定位或切换其他程序', false);
+        } else if (state.phase === 'PREPARING') {
+          showFeedback('info', 'ico-spin', true, '', '正在核验本地代理并建立进程接管…', false);
+        } else if (state.phase === 'RUNNING') {
+          showFeedback('success', 'ico-check', false, '程序已启动，流量已通过本地代理接管', '关闭目标软件后自动释放', false);
+        } else if (state.phase === 'PROXY_LOST') {
+          showFeedback('warn', 'ico-warn', false, '本地代理连接中断，已阻止直连', '目标软件仍在运行，恢复后将自动续接', false);
+        } else if (state.phase === 'PROTECTION_INTERRUPTED') {
+          showFeedback('error', 'ico-shield-off', false, '代理保护意外中断，可能无法阻止直连', '目标软件仍在运行，建议重启以恢复保护', false);
+        } else if (state.phase === 'RECOVERING') {
+          showFeedback('info', 'ico-spin', true, '', '目标软件已退出，正在释放会话资源…', false);
+        } else if (state.phase === 'FAILED' && state.error) {
+          showFeedback('error', 'ico-error', false, state.error.title, state.error.desc, Boolean(state.error.canEditProxy));
+        } else if (state.error) {
+          showFeedback('error', 'ico-error', false, state.error.title, state.error.desc, Boolean(state.error.canEditProxy));
+        } else {
+          feedbackWrap.classList.remove('visible');
+        }
+
+        // 4. 文档控制台状态同步
+        docStateLabel.textContent = STATE_LABELS[state.phase];
+        simWithHistory.disabled = locked;
+        simFirstLaunch.disabled = locked;
+        simPathMissing.disabled = locked;
+        proxyProbeMode.disabled = locked;
+        simProxyDrop.disabled = state.phase !== 'RUNNING';
+        simProxyRecover.disabled = state.phase !== 'PROXY_LOST';
+        simProtectionLost.disabled = !(state.phase === 'RUNNING' || state.phase === 'PROXY_LOST');
+        simProtectionRecover.disabled = state.phase !== 'PROTECTION_INTERRUPTED';
+        simProcessExit.disabled = !['RUNNING', 'PROXY_LOST', 'PROTECTION_INTERRUPTED'].includes(state.phase);
+
+        document.querySelectorAll('#stateSpecBody tr').forEach((tr) => {
+          tr.classList.toggle('is-current', tr.dataset.rowState === state.phase);
+        });
+      }
+
+      function showFeedback(tone, iconId, spinning, title, desc, showEditProxy) {
+        feedbackBar.className = `feedback-bar ${tone}`;
+        setIcon(feedbackIcon, iconId, spinning);
+        feedbackTitle.textContent = title;
+        feedbackTitle.hidden = !title;
+        feedbackDesc.textContent = desc;
+        feedbackDesc.style.marginTop = title ? '1px' : '0';
+        feedbackAction.hidden = !showEditProxy;
+        feedbackWrap.classList.add('visible');
+      }
+
+      function selectFile(name, path, isMissing = false) {
+        if (isLocked()) return;
+        if (!name.toLowerCase().endsWith('.exe')) {
+          state.error = {
+            title: '仅支持 .exe 可执行文件',
+            desc: `已忽略「${name}」，请选择有效的 Windows 应用程序`,
+            canEditProxy: false
+          };
+          echoDoc('触发校验：拒绝非 .exe 文件');
+          render();
+          return;
+        }
+        clearPendingTimer();
+        const item = { name, path, missing: isMissing };
+        state.file = item;
+        state.error = null;
+        upsertHistory(item);
+        state.phase = isMissing ? 'MISSING' : 'READY';
+        render();
+      }
+
+      function executeLaunchAfterProxyReady() {
+        clearPendingTimer();
+        state.proxyPanelOpen = false;
+        state.error = null;
+        state.phase = 'PREPARING';
+        echoDoc(`执行启动：验证入口 ${state.proxy.host}:${state.proxy.port} → UAC 提权守护 → 降权创建目标并放行`);
+        render();
+
+        const outcome = launchOutcome.value;
+        state.timer = setTimeout(() => {
+          state.timer = null;
+          if (outcome === 'success') {
+            state.phase = 'RUNNING';
+            echoDoc('接管已生效并放行进程（可点击下方模拟运行期事件）');
+          } else {
+            state.phase = 'FAILED';
+            state.error = FAIL_PRESETS[outcome];
+            echoDoc(`启动失败并已回滚：${outcome}`);
+          }
+          render();
+        }, 950);
+      }
+
+      function triggerLaunch() {
+        if (!state.file || (state.phase !== 'READY' && state.phase !== 'FAILED')) return;
+
+        // 未保存本地代理入口时，按辅助探测策略分支
+        if (!state.proxyConfigured) {
+          const mode = proxyProbeMode.value;
+          if (mode === 'probe_unique') {
+            state.proxy = { host: '127.0.0.1', port: '7897', user: '', pass: '' };
+            state.proxyConfigured = true;
+            proxyProbeMode.value = 'saved';
+            echoDoc('辅助探测找到唯一可用入口 127.0.0.1:7897，已自动保存并继续启动');
+            executeLaunchAfterProxyReady();
+            return;
+          }
+          if (mode === 'probe_multi') {
+            openProxyPanel('multi', [
+              { host: '127.0.0.1', port: '7897' },
+              { host: '127.0.0.1', port: '10808' }
+            ], true);
+            echoDoc('辅助探测发现多个候选端口 → 原位展开轻量确认卡');
+            return;
+          }
+          if (mode === 'probe_none') {
+            openProxyPanel('none', [], true);
+            echoDoc('未探测到可用本地代理 → 原位展开轻量输入卡');
+            return;
+          }
+          if (mode === 'probe_auth') {
+            openProxyPanel('auth', [{ host: '127.0.0.1', port: '10808' }], true);
+            echoDoc('探测到入口需要认证 → 原位展开并自动展开账号密码栏');
+            return;
+          }
+        }
+
+        executeLaunchAfterProxyReady();
+      }
+
+      // === 产品窗体交互绑定 ===
+      proxyTrigger.addEventListener('click', () => {
+        if (isLocked()) return;
+        if (state.proxyPanelOpen) {
+          closeProxyPanel();
+        } else {
+          openProxyPanel('edit', [], false);
+          echoDoc('手动展开本地 SOCKS5 入口配置卡');
+        }
+      });
+
+      proxyAuthToggle.addEventListener('click', () => {
+        state.proxyAuthOpen = !state.proxyAuthOpen;
+        render();
+      });
+
+      proxyCancelBtn.addEventListener('click', () => {
+        closeProxyPanel();
+        echoDoc('已取消代理入口修改');
+      });
+
+      proxySaveBtn.addEventListener('click', () => {
+        const host = proxyHost.value.trim();
+        const portNum = Number(proxyPort.value.trim());
+        if (!host || !Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+          state.error = {
+            title: '本地代理地址或端口无效',
+            desc: '请输入有效的本机地址与 1–65535 范围内的端口',
+            canEditProxy: false
+          };
+          render();
+          return;
+        }
+        state.proxy = {
+          host,
+          port: String(portNum),
+          user: proxyUser.value.trim(),
+          pass: proxyPass.value
+        };
+        state.proxyConfigured = true;
+        state.error = null;
+        proxyProbeMode.value = 'saved';
+        const shouldLaunch = state.resumeLaunchAfterSave;
+        state.proxyPanelOpen = false;
+        state.resumeLaunchAfterSave = false;
+        echoDoc(`已保存本地 SOCKS5 入口：${host}:${portNum}`);
+        if (shouldLaunch && state.file && (state.phase === 'READY' || state.phase === 'FAILED')) {
+          executeLaunchAfterProxyReady();
+        } else {
+          render();
+        }
+      });
+
+      feedbackAction.addEventListener('click', () => {
+        openProxyPanel('edit', [], true);
+      });
+
+      exeActionBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!isLocked()) fileInput.click();
+      });
+
+      exeSlot.addEventListener('click', () => {
+        if (state.phase === 'IDLE') fileInput.click();
+      });
+
+      fileInput.addEventListener('change', () => {
+        const f = fileInput.files && fileInput.files[0];
+        if (f) {
+          const folder = f.name.replace(/\.exe$/i, '');
+          selectFile(f.name, `C:\\Program Files\\${folder}\\${f.name}`, false);
+          echoDoc(`已选定并记忆：${f.name}`);
+        }
+        fileInput.value = '';
+      });
+
+      // 拖拽 .exe 交互
+      let dragDepth = 0;
+      winApp.addEventListener('dragenter', (e) => {
+        e.preventDefault();
+        if (isLocked()) return;
+        dragDepth++;
+        winApp.classList.add('drag-active');
+      });
+      winApp.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = isLocked() ? 'none' : 'copy';
+      });
+      winApp.addEventListener('dragleave', () => {
+        dragDepth = Math.max(0, dragDepth - 1);
+        if (dragDepth === 0) winApp.classList.remove('drag-active');
+      });
+      winApp.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dragDepth = 0;
+        winApp.classList.remove('drag-active');
+        if (isLocked()) return;
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) {
+          const folder = f.name.replace(/\.exe$/i, '');
+          selectFile(f.name, `C:\\Apps\\${folder}\\${f.name}`, false);
+          echoDoc(`已拖入并记忆：${f.name}`);
+        }
+      });
+
+      ctaBtn.addEventListener('click', triggerLaunch);
+
+      btnMin.addEventListener('click', () => {
+        echoDoc('标题栏行为：最小化窗口（不影响已建立的代理会话）');
+      });
+      btnClose.addEventListener('click', () => {
+        if (isLocked()) {
+          echoDoc('关闭约定：运行期点关闭仅隐藏至托盘，不解除接管、不强杀目标软件');
+        } else {
+          echoDoc('关闭约定：当前无活跃会话，直接退出启动器并持久化记忆');
+        }
+      });
+
+      // === 文档区控制绑定 ===
+      proxyProbeMode.addEventListener('change', () => {
+        if (isLocked()) return;
+        if (proxyProbeMode.value === 'saved') {
+          state.proxyConfigured = true;
+          state.proxyPanelOpen = false;
+          echoDoc('已切换为“已保存本地入口”状态');
+        } else {
+          state.proxyConfigured = false;
+          state.proxyPanelOpen = false;
+          echoDoc('已设为未配置入口：点击窗体「经代理启动」体验探测分支');
+        }
+        render();
+      });
+
+      simWithHistory.addEventListener('click', () => {
+        clearPendingTimer();
+        state.history = DEFAULT_HISTORY.map((item) => ({ ...item }));
+        state.file = { ...state.history[0] };
+        state.proxyPanelOpen = false;
+        state.error = null;
+        state.phase = 'READY';
+        echoDoc('模拟再次打开：自动恢复上次选择，并展示最近常用芯片');
+        render();
+      });
+
+      simFirstLaunch.addEventListener('click', () => {
+        clearPendingTimer();
+        state.history = [];
+        state.file = null;
+        state.proxyPanelOpen = false;
+        state.error = null;
+        state.phase = 'IDLE';
+        echoDoc('模拟首次打开：无历史记录，自动隐藏最近行回归极简初始态');
+        render();
+      });
+
+      simPathMissing.addEventListener('click', () => {
+        clearPendingTimer();
+        if (state.history.length === 0) {
+          state.history = DEFAULT_HISTORY.map((item) => ({ ...item }));
+        }
+        const cur = state.file ? { ...state.file, missing: true } : { ...state.history[0], missing: true };
+        state.file = cur;
+        upsertHistory(cur);
+        state.proxyPanelOpen = false;
+        state.error = null;
+        state.phase = 'MISSING';
+        echoDoc('模拟记忆路径失效：主槽标红提示缺失，仍可直接点最近行切换有效程序');
+        render();
+      });
+
+      simProxyDrop.addEventListener('click', () => {
+        if (state.phase !== 'RUNNING') return;
+        state.phase = 'PROXY_LOST';
+        echoDoc('后端事件：本地代理不可用 → 保持目标进程、阻止直连');
+        render();
+      });
+
+      simProxyRecover.addEventListener('click', () => {
+        if (state.phase !== 'PROXY_LOST') return;
+        state.phase = 'RUNNING';
+        echoDoc('后端事件：本地代理已恢复 → 新请求自动续接代理');
+        render();
+      });
+
+      simProtectionLost.addEventListener('click', () => {
+        if (!(state.phase === 'RUNNING' || state.phase === 'PROXY_LOST')) return;
+        state.phase = 'PROTECTION_INTERRUPTED';
+        echoDoc('后端事件：拦截守护组件意外退出 → 保留目标进程、如实告警（不虚报“已阻止直连”）');
+        render();
+      });
+
+      simProtectionRecover.addEventListener('click', () => {
+        if (state.phase !== 'PROTECTION_INTERRUPTED') return;
+        state.phase = 'RUNNING';
+        echoDoc('后端事件：拦截守护已恢复并重新确认保护有效 → 回到 RUNNING');
+        render();
+      });
+
+      simProcessExit.addEventListener('click', () => {
+        if (!['RUNNING', 'PROXY_LOST', 'PROTECTION_INTERRUPTED'].includes(state.phase)) return;
+        clearPendingTimer();
+        state.phase = 'RECOVERING';
+        echoDoc('后端事件：全部受管进程已退出 → 回收本会话资源');
+        render();
+        state.timer = setTimeout(() => {
+          state.timer = null;
+          state.phase = 'READY';
+          echoDoc('回收完成：已回到就绪态并保留当前记忆程序');
+          render();
+        }, 700);
+      });
+
+      toggleRedline.addEventListener('click', () => {
+        const on = frameWrap.classList.toggle('show-redlines');
+        toggleRedline.classList.toggle('active', on);
+        toggleRedline.setAttribute('aria-pressed', String(on));
+      });
+
+      toggleSpec.addEventListener('click', () => {
+        const open = specDrawer.classList.toggle('open');
+        toggleSpec.classList.toggle('active', open);
+        toggleSpec.setAttribute('aria-expanded', String(open));
+      });
+
+      document.querySelectorAll('.spec-tab').forEach((tab) => {
+        tab.addEventListener('click', () => {
+          const target = tab.dataset.tab;
+          document.querySelectorAll('.spec-tab').forEach((t) => {
+            const active = t === tab;
+            t.classList.toggle('active', active);
+            t.setAttribute('aria-selected', String(active));
+          });
+          document.querySelectorAll('.spec-pane').forEach((p) => {
+            p.classList.toggle('active', p.dataset.pane === target);
+          });
+        });
+      });
+
+      echoDoc('已与逻辑实现方案全 9 态对齐，可切换“代理入口场景”或运行期事件体验全部交互');
+      render();
+    })();
+  </script>
+</body>
+</html>

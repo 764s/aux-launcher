@@ -1,0 +1,193 @@
+{
+  "IntegrationMode": "ControlledLoopbackIPv6",
+  "Passed": 31,
+  "Failed": 0,
+  "Tests": [
+    {
+      "Name": "history-mru-capacity-and-independent-selection",
+      "Passed": true,
+      "Milliseconds": 8,
+      "Error": null
+    },
+    {
+      "Name": "missing-history-and-invalid-new-selection",
+      "Passed": true,
+      "Milliseconds": 3,
+      "Error": null
+    },
+    {
+      "Name": "settings-atomic-save-and-user-secret-protection",
+      "Passed": true,
+      "Milliseconds": 53,
+      "Error": null
+    },
+    {
+      "Name": "unknown-settings-version-preserved",
+      "Passed": true,
+      "Milliseconds": 2,
+      "Error": null
+    },
+    {
+      "Name": "corrupt-settings-quarantined",
+      "Passed": true,
+      "Milliseconds": 14,
+      "Error": null
+    },
+    {
+      "Name": "all-nine-states-lock-rules",
+      "Passed": true,
+      "Milliseconds": 1,
+      "Error": null
+    },
+    {
+      "Name": "local-proxy-address-validation",
+      "Passed": true,
+      "Milliseconds": 2,
+      "Error": null
+    },
+    {
+      "Name": "socks-udp-ipv4-ipv6-and-empty-datagrams",
+      "Passed": true,
+      "Milliseconds": 0,
+      "Error": null
+    },
+    {
+      "Name": "packet-nat-roundtrip-and-tcp-reset",
+      "Passed": true,
+      "Milliseconds": 1,
+      "Error": null
+    },
+    {
+      "Name": "udp-packet-payload-and-checksum",
+      "Passed": true,
+      "Milliseconds": 0,
+      "Error": null
+    },
+    {
+      "Name": "windivert-address-abi",
+      "Passed": true,
+      "Milliseconds": 0,
+      "Error": null
+    },
+    {
+      "Name": "native-endpoint-owner-tcp-and-udp",
+      "Passed": true,
+      "Milliseconds": 26,
+      "Error": null
+    },
+    {
+      "Name": "socks5-tcp-udp-through-real-loopback-servers",
+      "Passed": true,
+      "Milliseconds": 18,
+      "Error": null
+    },
+    {
+      "Name": "native-endpoint-owner-ipv6-udp",
+      "Passed": true,
+      "Milliseconds": 1,
+      "Error": null
+    },
+    {
+      "Name": "socks-auth-required-success-and-rejection",
+      "Passed": true,
+      "Milliseconds": 2,
+      "Error": null
+    },
+    {
+      "Name": "named-pipe-authentication-and-concurrent-rpc",
+      "Passed": true,
+      "Milliseconds": 36,
+      "Error": null
+    },
+    {
+      "Name": "ordinary-process-suspended-start-and-parent-exit",
+      "Passed": true,
+      "Milliseconds": 2057,
+      "Error": null
+    },
+    {
+      "Name": "driver-initialization-and-normal-user-target",
+      "Passed": true,
+      "Milliseconds": 919,
+      "Error": null
+    },
+    {
+      "Name": "driver-tcp-through-socks",
+      "Passed": true,
+      "Milliseconds": 78,
+      "Error": null
+    },
+    {
+      "Name": "driver-udp-through-socks",
+      "Passed": true,
+      "Milliseconds": 79,
+      "Error": null
+    },
+    {
+      "Name": "driver-autonomous-dns-through-socks",
+      "Passed": true,
+      "Milliseconds": 49,
+      "Error": null
+    },
+    {
+      "Name": "driver-unrelated-same-exe-is-not-proxied",
+      "Passed": true,
+      "Milliseconds": 1474,
+      "Error": null
+    },
+    {
+      "Name": "driver-proxy-loss-preserves-target-and-new-requests-recover",
+      "Passed": true,
+      "Milliseconds": 5163,
+      "Error": null
+    },
+    {
+      "Name": "driver-relay-crash-preserves-capture",
+      "Passed": true,
+      "Milliseconds": 526,
+      "Error": null
+    },
+    {
+      "Name": "driver-guard-exit-preserves-target-and-rebinds",
+      "Passed": true,
+      "Milliseconds": 669,
+      "Error": null
+    },
+    {
+      "Name": "driver-parent-exit-child-stays-managed-and-cleans",
+      "Passed": true,
+      "Milliseconds": 844,
+      "Error": null
+    },
+    {
+      "Name": "controller-selection-persistence-and-missing-history",
+      "Passed": true,
+      "Milliseconds": 60,
+      "Error": null
+    },
+    {
+      "Name": "controller-proxy-confirmation-auth-and-cancel",
+      "Passed": true,
+      "Milliseconds": 19,
+      "Error": null
+    },
+    {
+      "Name": "controller-rejects-proxy-without-udp-before-uac",
+      "Passed": true,
+      "Milliseconds": 19,
+      "Error": null
+    },
+    {
+      "Name": "runtime-session-keeps-encrypted-proxy-snapshot",
+      "Passed": true,
+      "Milliseconds": 8,
+      "Error": null
+    },
+    {
+      "Name": "controller-real-start-lock-and-complete-cleanup",
+      "Passed": true,
+      "Milliseconds": 2803,
+      "Error": null
+    }
+  ]
+}

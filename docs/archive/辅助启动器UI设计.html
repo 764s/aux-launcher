@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="辅助启动器 UI 设计文档：初始、待启动、已启动、启动失败四个静态界面。">
+  <meta name="theme-color" content="#f1f3f7">
+  <title>辅助启动器 UI 设计文档</title>
+  <style>
+    :root { color-scheme: light; font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif; font-size: 16px; color: #202936; background: #f1f3f7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    .document { width: min(912px, calc(100% - 64px)); min-height: 100vh; margin: 0 auto; padding: 56px 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; gap: 32px; }
+    .screen { margin: 0; padding: 28px; border: 1px solid #dfe4ec; border-radius: 12px; background: #fff; box-shadow: 0 2px 5px #1d2c4303, 0 10px 30px #1d2c4306; }
+    h1, h2 { margin: 0 0 24px; font-size: 1.125rem; line-height: 1.4; font-weight: 600; letter-spacing: -.015em; }
+    .file { min-height: 72px; display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid #d9dfe8; border-radius: 7px; background: #fff; }
+    .file-icon { width: 23px; height: 26px; flex: 0 0 23px; color: #7b879b; }
+    .file-copy { min-width: 0; flex: 1; }
+    .filename { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1rem; line-height: 1.5; font-weight: 500; }
+    .path { margin: 2px 0 0; color: #738095; font-size: .8125rem; line-height: 1.5; overflow-wrap: anywhere; }
+    .file-action { flex-shrink: 0; color: #315ee8; font-size: .875rem; }
+    .primary { margin-top: 16px; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 7px; background: #315ee8; color: #fff; font-size: 1rem; line-height: 1.5; font-weight: 600; }
+    .primary.disabled { background: #edf0f5; color: #8a94a5; }
+    .file.locked { background: #fafbfc; }
+    .status { min-height: 42px; margin: 14px 0 0; font-size: .875rem; line-height: 1.5; overflow-wrap: anywhere; }
+    .success { display: flex; align-items: flex-start; gap: 7px; color: #23704f; }
+    .success svg { width: 16px; height: 20px; flex: 0 0 16px; }
+    .error { color: #b42d3c; }
+    .error strong { font-weight: 500; }
+    .error span { display: block; }
+    @media (max-width: 760px) {
+      .document { width: min(432px, calc(100% - 40px)); padding: 32px 0; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    }
+    @media (max-width: 380px) {
+      .document { width: calc(100% - 28px); padding: 20px 0; gap: 20px; }
+      .screen { padding: 22px; }
+      .file { gap: 10px; padding: 12px; }
+    }
+    @media print {
+      :root { background: #fff; }
+      .document { width: 100%; min-height: auto; padding: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+      .screen { break-inside: avoid; box-shadow: none; }
+      * { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="file" viewBox="0 0 24 28">
+        <path d="M5 2h9l6 6v16a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.5" fill="none"/>
+        <path d="M14 2v6h6M8 14h7M8 18h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </symbol>
+    </defs>
+  </svg>
+  <!-- 静态状态画板；控件仅作视觉呈现。 -->
+  <main class="document" aria-label="辅助启动器 UI 设计文档">
+    <figure class="screen" role="img" aria-label="初始界面：选择 exe 文件，启动按钮不可用。">
+      <h1>辅助启动器</h1>
+      <div class="file">
+        <svg class="file-icon" aria-hidden="true"><use href="#file"/></svg>
+        <div class="file-copy"><p class="filename">选择 exe 文件</p></div>
+        <span class="file-action">选择</span>
+      </div>
+      <div class="primary disabled">启动</div>
+      <p class="status" aria-hidden="true"></p>
+    </figure>
+
+    <figure class="screen" role="img" aria-label="待启动界面：已选择 ExampleApp.exe，可以更换程序或启动。">
+      <h2>辅助启动器</h2>
+      <div class="file">
+        <svg class="file-icon" aria-hidden="true"><use href="#file"/></svg>
+        <div class="file-copy"><p class="filename">ExampleApp.exe</p><p class="path">C:\Apps\ExampleApp.exe</p></div>
+        <span class="file-action">更换</span>
+      </div>
+      <div class="primary">启动</div>
+      <p class="status" aria-hidden="true"></p>
+    </figure>
+
+    <figure class="screen" role="img" aria-label="已启动界面：ExampleApp.exe 已启动，当前选择和启动操作不可用。">
+      <h2>辅助启动器</h2>
+      <div class="file locked">
+        <svg class="file-icon" aria-hidden="true"><use href="#file"/></svg>
+        <div class="file-copy"><p class="filename">ExampleApp.exe</p><p class="path">C:\Apps\ExampleApp.exe</p></div>
+      </div>
+      <div class="primary disabled">启动</div>
+      <p class="status success"><svg viewBox="0 0 16 20" fill="none" aria-hidden="true"><path d="m3 10 3.2 3.2L13 6.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>程序已启动。</p>
+    </figure>
+
+    <figure class="screen" role="img" aria-label="启动失败界面：无法连接 V2Ray，检查连接后可以重试。">
+      <h2>辅助启动器</h2>
+      <div class="file">
+        <svg class="file-icon" aria-hidden="true"><use href="#file"/></svg>
+        <div class="file-copy"><p class="filename">ExampleApp.exe</p><p class="path">C:\Apps\ExampleApp.exe</p></div>
+        <span class="file-action">更换</span>
+      </div>
+      <div class="primary">重试</div>
+      <p class="status error"><strong>无法连接 V2Ray。</strong><span>请检查连接后重试。</span></p>
+    </figure>
+  </main>
+</body>
+</html>

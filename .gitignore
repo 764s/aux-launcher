@@ -1,0 +1,16 @@
+**/bin/
+**/obj/
+release/
+test-results/runs/
+*.user
+.vs/
+settings.json
+settings.json.*
+active-session.json*
+logs/
+*.jsonl
+*.pdb
+*.pfx
+*.p12
+.env
+.env.*

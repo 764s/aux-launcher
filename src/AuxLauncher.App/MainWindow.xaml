@@ -1,0 +1,118 @@
+<Window x:Class="AuxLauncher.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="代理启动器" Width="412" SizeToContent="Height" ResizeMode="NoResize" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+ FontFamily="Segoe UI, Microsoft YaHei UI" FontSize="14" Foreground="#0F172A" WindowStartupLocation="CenterScreen" AllowDrop="True">
+ <Window.Resources>
+  <Style x:Key="FlatButton" TargetType="Button">
+   <Setter Property="BorderThickness" Value="0"/><Setter Property="Background" Value="Transparent"/><Setter Property="Cursor" Value="Hand"/><Setter Property="Padding" Value="8,4"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6"><ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Border" Property="Opacity" Value=".82"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter Property="Cursor" Value="Arrow"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="MainButton" TargetType="Button" BasedOn="{StaticResource FlatButton}">
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="B" CornerRadius="9" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="{TemplateBinding Padding}"/></Border><ControlTemplate.Triggers><Trigger Property="IsPressed" Value="True"><Setter TargetName="B" Property="Opacity" Value=".9"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style x:Key="Input" TargetType="TextBox">
+   <Setter Property="Height" Value="32"/><Setter Property="FontSize" Value="12"/><Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/><Setter Property="Padding" Value="9,0"/><Setter Property="VerticalContentAlignment" Value="Center"/><Setter Property="BorderBrush" Value="#CBD5E1"/><Setter Property="BorderThickness" Value="1"/><Setter Property="Background" Value="White"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="TextBox"><Border x:Name="B" CornerRadius="6" Background="{TemplateBinding Background}" BorderThickness="{TemplateBinding BorderThickness}" BorderBrush="{TemplateBinding BorderBrush}"><ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#2563EB"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Geometry x:Key="Play">M5,3.6 L5,12.4 L12.2,8 Z</Geometry>
+  <Style x:Key="PasswordInput" TargetType="PasswordBox">
+   <Setter Property="Height" Value="32"/><Setter Property="FontSize" Value="12"/><Setter Property="Padding" Value="9,0"/><Setter Property="Background" Value="White"/><Setter Property="BorderBrush" Value="#CBD5E1"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="PasswordBox"><Border x:Name="B" CornerRadius="6" Background="{TemplateBinding Background}" BorderThickness="1" BorderBrush="{TemplateBinding BorderBrush}"><ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="#2563EB"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Geometry x:Key="Spin">M8,2.5 A5.5,5.5 0 1 1 2.5,8</Geometry>
+  <Geometry x:Key="Check">M8,1.75 A6.25,6.25 0 1 1 7.99,1.75 M5.4,8.1 L7.2,9.9 L10.8,6.3</Geometry>
+  <Geometry x:Key="Warn">M8,2.4 L14,13 L2,13 Z M8,6.4 L8,9.4 M8,11.2 L8,11.3</Geometry>
+  <Geometry x:Key="Error">M8,1.75 A6.25,6.25 0 1 1 7.99,1.75 M8,5 L8,8.5 M8,10.8 L8,10.9</Geometry>
+  <Geometry x:Key="Retry">M12.5,8 A4.5,4.5 0 1 1 11.2,4.8 M12.5,3.2 L12.5,5.6 L10.1,5.6</Geometry>
+  <Geometry x:Key="ShieldOff">M8,2.2 L13,4.2 L13,7.8 C13,10.8 10.9,12.8 8,13.8 C5.1,12.8 3,10.8 3,7.8 L3,4.2 Z M8,5.6 L8,8.6 M8,10.6 L8.01,10.6</Geometry>
+ </Window.Resources>
+ <Border Margin="12" CornerRadius="12" Background="White" BorderBrush="#D9DFE8" BorderThickness="1">
+  <Border.Effect><DropShadowEffect Color="#334155" BlurRadius="20" ShadowDepth="6" Opacity=".17"/></Border.Effect>
+  <StackPanel>
+   <Border Height="38" CornerRadius="11,11,0,0" BorderBrush="#F1F5F9" BorderThickness="0,0,0,1" Background="#FCFDFE" MouseLeftButtonDown="TitleDrag">
+    <Grid Margin="12,0,6,0">
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+      <Border Width="18" Height="18" CornerRadius="5" Margin="0,0,7,0"><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="0,1"><GradientStop Color="#3B82F6" Offset="0"/><GradientStop Color="#1D4ED8" Offset="1"/></LinearGradientBrush></Border.Background><Viewbox Margin="3"><Canvas Width="16" Height="16"><Path Data="M3,8 L9.5,8 M7,4.5 L10.5,8 L7,11.5" Stroke="White" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/><Ellipse Width="2.8" Height="2.8" Canvas.Left="11.1" Canvas.Top="6.6" Fill="White"/></Canvas></Viewbox></Border>
+      <TextBlock Text="代理启动器" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center"/>
+      <Border Margin="7,0,0,0" Padding="5,2" CornerRadius="5" BorderBrush="#E2E8F0" BorderThickness="1" Background="#F8FAFC"><TextBlock Text="非 TUN" FontSize="10.5" Foreground="#64748B" FontWeight="SemiBold"/></Border>
+     </StackPanel>
+     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+      <Button x:Name="ProxyTrigger" Style="{StaticResource FlatButton}" Height="22" Margin="0,0,5,0" Padding="6,2" FontFamily="Cascadia Mono, Consolas" FontSize="10.5" Foreground="#64748B" Click="OpenProxy" Content="未配置"/>
+      <Button Style="{StaticResource FlatButton}" Width="30" Height="26" Padding="0" ToolTip="最小化" Click="Minimize"><Path Data="M2.5,6 L9.5,6" Width="12" Height="12" Stroke="#64748B" StrokeThickness="1.2"/></Button>
+      <Button x:Name="CloseButton" Style="{StaticResource FlatButton}" Width="30" Height="26" Padding="0" ToolTip="关闭" Click="CloseClick"><Path Data="M3,3 L9,9 M9,3 L3,9" Width="12" Height="12" Stroke="#64748B" StrokeThickness="1.2"/></Button>
+     </StackPanel>
+    </Grid>
+   </Border>
+   <StackPanel Margin="20,18,20,20">
+    <Grid>
+    <Border x:Name="FileSlot" MinHeight="68" Padding="12" CornerRadius="10" BorderBrush="#CBD5E1" BorderThickness="1" Background="#F8FAFC" MouseLeftButtonDown="FileSlotClick">
+     <Border.ContextMenu><ContextMenu><MenuItem Header="从记忆中移除" Click="RemoveCurrent"/></ContextMenu></Border.ContextMenu>
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <Border x:Name="FileIconBox" Width="38" Height="38" CornerRadius="9" Background="#F1F5F9" VerticalAlignment="Center">
+       <Viewbox Margin="9"><Path x:Name="FileIcon" Data="M3,4 L19,4 L19,18 L3,18 Z M3,8 L19,8 M11,11 L11,15 M9,13 L13,13" Stroke="#94A3B8" StrokeThickness="1.5"/></Viewbox>
+      </Border>
+      <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
+       <DockPanel LastChildFill="True">
+        <Border x:Name="MissingBadge" DockPanel.Dock="Right" CornerRadius="4" Padding="4,1" Background="#FFE4E6" Margin="5,0,0,0" Visibility="Collapsed"><TextBlock Text="文件缺失" FontSize="9" Foreground="#BE123C"/></Border>
+        <TextBlock x:Name="FileTitle" Text="选择目标程序" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis"/>
+       </DockPanel>
+       <TextBlock x:Name="FileSubtitle" Text="点击选择或拖入 .exe 文件" Margin="0,4,0,0" FontSize="11" Foreground="#94A3B8" TextTrimming="CharacterEllipsis"/>
+      </StackPanel>
+      <Grid Grid.Column="2" VerticalAlignment="Center">
+       <Button x:Name="ChooseButton" Style="{StaticResource FlatButton}" Padding="9,5" FontSize="11.5" Foreground="#2563EB" Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" Content="选择" Click="Choose"/>
+       <Ellipse x:Name="LiveDot" Width="7" Height="7" Margin="7,0" Fill="#10B981" Visibility="Collapsed"/>
+      </Grid>
+     </Grid>
+    </Border>
+    <Rectangle x:Name="EmptySlotOutline" Stroke="#CBD5E1" StrokeThickness="1" StrokeDashArray="3 3" RadiusX="10" RadiusY="10" IsHitTestVisible="False"/>
+    </Grid>
+    <Grid x:Name="RecentPanel" Margin="0,8,0,0" Visibility="Collapsed">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+     <TextBlock Text="最近" FontSize="11" Foreground="#94A3B8" Margin="0,5,8,0"/>
+     <WrapPanel x:Name="RecentChips" Grid.Column="1"/>
+    </Grid>
+    <Border x:Name="ProxyPanel" Margin="0,14,0,0" Padding="12" CornerRadius="10" Background="#F8FAFC" BorderBrush="#E2E8F0" BorderThickness="1" Visibility="Collapsed">
+     <StackPanel>
+      <TextBlock x:Name="ProxyTitle" Text="本地 SOCKS5 代理" FontSize="12.5" FontWeight="SemiBold"/>
+      <TextBlock x:Name="ProxyHint" Text="" Margin="0,4,0,0" FontSize="11" Foreground="#64748B" TextWrapping="Wrap" Visibility="Collapsed"/>
+      <WrapPanel x:Name="CandidatesPanel" Margin="0,8,0,0" Visibility="Collapsed"/>
+      <Grid Margin="0,10,0,0">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="104"/></Grid.ColumnDefinitions>
+       <StackPanel><TextBlock Text="本机地址" FontSize="10.5" Foreground="#64748B" Margin="0,0,0,4"/><TextBox x:Name="ProxyHost" Style="{StaticResource Input}" Text="127.0.0.1"/></StackPanel>
+       <StackPanel Grid.Column="2"><TextBlock Text="SOCKS5 端口" FontSize="10.5" Foreground="#64748B" Margin="0,0,0,4"/><TextBox x:Name="ProxyPort" Style="{StaticResource Input}"/></StackPanel>
+      </Grid>
+      <Grid x:Name="AuthFields" Margin="0,9,0,0" Visibility="Collapsed">
+       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="10"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+       <StackPanel><TextBlock Text="用户名（可选）" FontSize="10.5" Foreground="#64748B" Margin="0,0,0,4"/><TextBox x:Name="ProxyUsername" Style="{StaticResource Input}"/></StackPanel>
+       <StackPanel Grid.Column="2"><TextBlock Text="密码（可选）" FontSize="10.5" Foreground="#64748B" Margin="0,0,0,4"/><PasswordBox x:Name="ProxyPassword" Style="{StaticResource PasswordInput}"/></StackPanel>
+      </Grid>
+      <Grid Margin="0,10,0,0">
+       <Button x:Name="AuthToggle" Style="{StaticResource FlatButton}" HorizontalAlignment="Left" Padding="0,3" Foreground="#64748B" FontSize="10.5" Content="+ 需要账号密码" Click="ToggleAuth"/>
+       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+        <Button Style="{StaticResource FlatButton}" Content="取消" FontSize="11" Padding="9,5" Margin="0,0,6,0" Foreground="#64748B" Click="CancelProxy"/>
+        <Button x:Name="SaveProxyButton" Style="{StaticResource FlatButton}" Content="保存" FontSize="11" Padding="10,5" Foreground="White" Background="#2563EB" Click="SaveProxy"/>
+       </StackPanel>
+      </Grid>
+     </StackPanel>
+    </Border>
+    <Button x:Name="LaunchButton" Style="{StaticResource MainButton}" Height="44" Margin="0,14,0,0" Padding="0" BorderThickness="1" BorderBrush="#1E40AF" Click="Launch">
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center">
+      <Path x:Name="MainGlyph" Data="{StaticResource Play}" Fill="White" Width="16" Height="16" Margin="0,0,8,0" RenderTransformOrigin=".5,.5"><Path.RenderTransform><RotateTransform/></Path.RenderTransform></Path>
+      <TextBlock x:Name="MainLabel" Text="经代理启动" FontSize="14" FontWeight="SemiBold"/>
+     </StackPanel>
+    </Button>
+    <Border x:Name="Feedback" Margin="0,14,0,0" Padding="10,9" CornerRadius="8" BorderThickness="1" Background="#EFF6FF" BorderBrush="#BFDBFE" Visibility="Collapsed">
+     <Grid>
+      <Grid.ColumnDefinitions><ColumnDefinition Width="15"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <Path x:Name="FeedbackGlyph" Data="{StaticResource Error}" Stroke="#BE123C" StrokeThickness="1.5" Width="15" Height="16" VerticalAlignment="Top"/>
+      <StackPanel Grid.Column="1" Margin="7,0,0,0">
+       <TextBlock x:Name="FeedbackTitle" FontWeight="SemiBold" FontSize="11.5" TextWrapping="Wrap"/>
+       <TextBlock x:Name="FeedbackDetail" Margin="0,2,0,0" FontSize="11" TextWrapping="Wrap"/>
+      </StackPanel>
+      <Button x:Name="EditProxyLink" Grid.Column="2" Style="{StaticResource FlatButton}" Content="修改入口" Padding="4,0,0,0" FontSize="10.5" Foreground="#2563EB" VerticalAlignment="Center" Visibility="Collapsed" Click="OpenProxy"/>
+     </Grid>
+    </Border>
+   </StackPanel>
+  </StackPanel>
+ </Border>
+</Window>
