@@ -80,3 +80,5 @@ test.ps1                自动化验证入口
 - [WinDivert 来源与许可](vendor/WinDivert/NOTICE.md)
 
 定稿文档的产品与架构语义保持不变，示例路径使用通用目录。上传 GitHub 时提交源码、脚本、文档、测试和 WinDivert 许可；可运行 ZIP 适合放到 Releases。不要上传个人设置、会话数据、运行日志和本机调试符号。
+
+友情链接：[LINUX DO](https://linux.do/)
